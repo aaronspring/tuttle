@@ -451,7 +451,6 @@ class TDropDown(Column):
             visible=self.visible,
             filled=True,
             bgcolor=colors.bg_input,
-            focused_bgcolor=colors.bg_input,
             border_color=colors.border,
             focused_border_color=colors.accent,
             border_width=1,

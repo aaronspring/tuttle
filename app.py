@@ -106,11 +106,9 @@ class TuttleApp:
         dialog_title,
         file_type,
     ):
-        # pick_files now returns list[FilePickerFile] directly (Flet 0.81+)
         from types import SimpleNamespace
         from flet import FilePickerFileType
 
-        # Map string file_type to enum if needed
         file_type_map = {
             "any": FilePickerFileType.ANY,
             "custom": FilePickerFileType.CUSTOM,
@@ -125,15 +123,33 @@ class TuttleApp:
             else file_type
         )
 
-        files = self.file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=allowed_extensions,
-            dialog_title=dialog_title,
-            file_type=ft_file_type,
-        )
-        # Wrap in a namespace so callbacks can still use result.files
-        result = SimpleNamespace(files=files)
-        on_file_picker_result(result)
+        import sys
+
+        if sys.platform == "darwin" and ft_file_type == FilePickerFileType.CUSTOM:
+            ft_file_type = FilePickerFileType.ANY
+
+        async def _pick_files():
+            pick_kwargs = dict(
+                allow_multiple=False,
+                dialog_title=dialog_title,
+                file_type=ft_file_type,
+            )
+            if ft_file_type == FilePickerFileType.CUSTOM and allowed_extensions:
+                pick_kwargs["allowed_extensions"] = allowed_extensions
+            files = await self.file_picker.pick_files(**pick_kwargs)
+            if files and allowed_extensions:
+                files = [
+                    f
+                    for f in files
+                    if any(
+                        f.name.lower().endswith(f".{ext.lower()}")
+                        for ext in allowed_extensions
+                    )
+                ]
+            result = SimpleNamespace(files=files)
+            on_file_picker_result(result)
+
+        self.page.run_task(_pick_files)
 
     def on_theme_mode_changed(self, selected_theme: str):
         """callback function used by views for changing app theme mode"""
@@ -149,6 +165,15 @@ class TuttleApp:
         action_callback: Optional[Callable] = None,
     ):
         """callback function used by views to display a snack bar message"""
+        from flet import SnackBarAction
+
+        action = None
+        if action_label:
+            action = SnackBarAction(
+                label=action_label,
+                text_color=accent,
+                on_click=action_callback,
+            )
         snack = SnackBar(
             content=THeading(
                 title=message,
@@ -156,9 +181,7 @@ class TuttleApp:
                 color=danger if is_error else text_primary,
             ),
             bgcolor=bg_surface,
-            action=action_label,
-            action_color=accent,
-            on_action=action_callback,
+            action=action,
             open=True,
         )
         self.page.show_dialog(snack)
@@ -363,12 +386,15 @@ def get_assets_uploads_url(with_parent_dir: bool = False):
     return uploads_dir
 
 
-def main(page: Page):
+async def main(page: Page):
     """Entry point of the app"""
     app = TuttleApp(page)
 
     # if database does not exist, create it
     app.db.ensure_database()
+
+    # pre-load shared preferences cache (async in Flet 0.80+)
+    await app.client_storage.load_cache()
 
     app.build()
 

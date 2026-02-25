@@ -10,6 +10,8 @@ from flet import (
     IconButton,
     Row,
     Tab,
+    TabBar,
+    TabBarView,
     Tabs,
     Control,
     Icons,
@@ -135,26 +137,25 @@ class PreferencesScreen(TView, Row):
         logger.warning("Quitting app after reset. Please restart.")
         self.on_reset_app_callback()
 
-    def get_tab_item(self, label, icon, content_controls):
+    def _make_tab_header(self, label, icon):
         return Tab(
             label=Column(
                 alignment=CENTER_ALIGNMENT,
                 horizontal_alignment=CENTER_ALIGNMENT,
                 controls=[
-                    Icon(
-                        icon,
-                        size=dimens.ICON_SIZE,
-                    ),
+                    Icon(icon, size=dimens.ICON_SIZE),
                     views.Spacer(sm_space=True),
                     views.TBodyText(txt=label),
                     views.Spacer(md_space=True),
                 ],
             ),
-            content=Container(
-                content=Column(controls=content_controls),
-                padding=Padding.symmetric(vertical=SPACE_XL),
-                margin=Margin.symmetric(vertical=SPACE_MD),
-            ),
+        )
+
+    def _make_tab_content(self, content_controls):
+        return Container(
+            content=Column(controls=content_controls),
+            padding=Padding.symmetric(vertical=SPACE_XL),
+            margin=Margin.symmetric(vertical=SPACE_MD),
         )
 
     def build(self):
@@ -215,39 +216,49 @@ class PreferencesScreen(TView, Row):
         self.tabs = Tabs(
             selected_index=0,
             animation_duration=300,
+            length=3,
             width=self.body_width - SPACE_MD,
             height=MIN_WINDOW_HEIGHT,
-            tabs=[
-                self.get_tab_item(
-                    "General",
-                    Icons.SETTINGS_OUTLINED,
-                    [
-                        self.theme_control,
-                        views.Spacer(lg_space=True),
-                        self.reset_button,
-                    ],
-                ),
-                self.get_tab_item(
-                    "Cloud",
-                    Icons.CLOUD_OUTLINED,
-                    [
-                        views.TBodyText(
-                            txt="Setting up your cloud account will enable you to import time tracking data from your cloud calendar.",
-                        ),
-                        views.Spacer(sm_space=True),
-                        self.cloud_provider_control,
-                        self.cloud_account_id_control,
-                    ],
-                ),
-                self.get_tab_item(
-                    "Locale",
-                    Icons.LANGUAGE_OUTLINED,
-                    [
-                        self.languages_control,
-                        self.currencies_control,
-                    ],
-                ),
-            ],
+            content=Column(
+                expand=True,
+                controls=[
+                    TabBar(
+                        tabs=[
+                            self._make_tab_header("General", Icons.SETTINGS_OUTLINED),
+                            self._make_tab_header("Cloud", Icons.CLOUD_OUTLINED),
+                            self._make_tab_header("Locale", Icons.LANGUAGE_OUTLINED),
+                        ],
+                    ),
+                    TabBarView(
+                        expand=True,
+                        controls=[
+                            self._make_tab_content(
+                                [
+                                    self.theme_control,
+                                    views.Spacer(lg_space=True),
+                                    self.reset_button,
+                                ]
+                            ),
+                            self._make_tab_content(
+                                [
+                                    views.TBodyText(
+                                        txt="Setting up your cloud account will enable you to import time tracking data from your cloud calendar.",
+                                    ),
+                                    views.Spacer(sm_space=True),
+                                    self.cloud_provider_control,
+                                    self.cloud_account_id_control,
+                                ]
+                            ),
+                            self._make_tab_content(
+                                [
+                                    self.languages_control,
+                                    self.currencies_control,
+                                ]
+                            ),
+                        ],
+                    ),
+                ],
+            ),
         )
         self.body = Container(
             padding=Padding.all(SPACE_MD),

@@ -271,8 +271,8 @@ class InvoicingListView(TView, Column):
         self.contacts = {}
         self.active_projects = {}
         self.editor = None
-        self.time_tracking_data: DataFrame = None
-        self.user: User = None
+        object.__setattr__(self, "time_tracking_data", None)
+        object.__setattr__(self, "user", None)
         self.active_filter: str = self._FILTER_ALL
 
     def load_user_data(
@@ -281,7 +281,7 @@ class InvoicingListView(TView, Column):
         """Loads the user for payment info"""
         user_result: IntentResult = self.intent.get_user()
         if user_result.was_intent_successful:
-            self.user: User = user_result.data
+            object.__setattr__(self, "user", user_result.data)
             self.is_user_missing_payment_info()
         else:
             self.show_snack(
@@ -618,7 +618,11 @@ class InvoicingListView(TView, Column):
         self.mounted = True
         self.loading_indicator.visible = True
         self.active_projects = self.intent.get_active_projects_as_map()
-        self.time_tracking_data = self.intent.get_time_tracking_data_as_dataframe()
+        object.__setattr__(
+            self,
+            "time_tracking_data",
+            self.intent.get_time_tracking_data_as_dataframe(),
+        )
         self.load_user_data()
         self.invoices_to_display = self.intent.get_all_invoices_as_map()
         count = len(self.invoices_to_display)

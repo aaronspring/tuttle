@@ -169,7 +169,7 @@ class TimeTrackingView(TView, Column):
         self.preferred_cloud_acc = ""
         self.preferred_cloud_provider = ""
         self.pop_up_handler = None
-        self.dataframe_to_display: Optional[DataFrame] = None
+        object.__setattr__(self, "dataframe_to_display", None)
 
     def close_pop_up_if_open(self):
         if self.pop_up_handler:
@@ -245,7 +245,7 @@ class TimeTrackingView(TView, Column):
         is_error = not intent_result.was_intent_successful
         self.show_snack(msg, is_error)
         if intent_result.was_intent_successful:
-            self.dataframe_to_display = intent_result.data
+            object.__setattr__(self, "dataframe_to_display", intent_result.data)
             self.update_timetracking_dataframe()
             self.display_dataframe()
         self.set_progress_hint(hide_progress=True)
@@ -378,7 +378,7 @@ class TimeTrackingView(TView, Column):
                 is_error=True,
             )
             return
-        self.dataframe_to_display = result.data
+        object.__setattr__(self, "dataframe_to_display", result.data)
         self.update_timetracking_dataframe()
         self.display_dataframe()
 
@@ -390,7 +390,7 @@ class TimeTrackingView(TView, Column):
             self.show_snack(result.error_msg, is_error=True)
             return
         if isinstance(result.data, DataFrame):
-            self.dataframe_to_display = result.data
+            object.__setattr__(self, "dataframe_to_display", result.data)
 
     def update_timetracking_dataframe(self):
         result = self.intent.set_timetracking_data(self.dataframe_to_display)
