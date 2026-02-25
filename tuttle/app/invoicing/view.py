@@ -1,16 +1,22 @@
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
-from datetime import datetime, timedelta
+import datetime as _dt
+from datetime import datetime, timedelta, date
+from decimal import Decimal
 
 from flet import (
     AlertDialog,
+    BorderRadius,
     Column,
     Container,
+    Icon,
+    IconButton,
     ListTile,
     ListView,
     ResponsiveRow,
     Row,
     Text,
+    TextStyle,
     Control,
     alignment,
     border,
@@ -28,6 +34,105 @@ from ..res import colors, dimens, fonts, res_utils
 from ...model import Invoice, Project, User
 
 from .intent import InvoicingIntent
+
+
+# ── Helpers ──────────────────────────────────────────────────
+
+
+def _is_overdue(invoice: Invoice) -> bool:
+    """Return True when the invoice is past its due date and still unpaid."""
+    if invoice.paid or invoice.cancelled:
+        return False
+    try:
+        due = invoice.due_date
+    except Exception:
+        return False
+    return due is not None and due < date.today()
+
+
+def _status_color(invoice: Invoice) -> str:
+    """Return a left-stripe colour summarising the invoice status."""
+    if invoice.cancelled:
+        return colors.text_muted
+    if invoice.paid:
+        return colors.success
+    if _is_overdue(invoice):
+        return colors.danger
+    if invoice.sent:
+        return colors.accent
+    return colors.text_muted  # draft / unsent
+
+
+# ── Metric card (for the summary bar) ────────────────────────
+
+
+class _MetricCard(Container):
+    """Small KPI card showing a label + value + optional sub-text."""
+
+    def __init__(
+        self,
+        label: str,
+        value: str,
+        color: str = colors.text_primary,
+        sub: str = "",
+    ):
+        super().__init__(
+            bgcolor=colors.bg_surface,
+            border=border.all(dimens.CARD_BORDER_WIDTH, colors.border),
+            border_radius=dimens.RADIUS_LG,
+            padding=padding.symmetric(
+                horizontal=dimens.SPACE_MD, vertical=dimens.SPACE_SM
+            ),
+            expand=True,
+            content=Column(
+                spacing=2,
+                controls=[
+                    Text(
+                        label.upper(),
+                        size=fonts.OVERLINE_SIZE,
+                        color=colors.text_muted,
+                        weight=fonts.BOLDER_FONT,
+                        style=TextStyle(letter_spacing=1.0),
+                    ),
+                    Text(
+                        value,
+                        size=fonts.HEADLINE_2_SIZE,
+                        color=color,
+                        weight=fonts.BOLD_FONT,
+                    ),
+                ]
+                + (
+                    [Text(sub, size=fonts.CAPTION_SIZE, color=colors.text_secondary)]
+                    if sub
+                    else []
+                ),
+            ),
+        )
+
+
+# ── Filter chip ──────────────────────────────────────────────
+
+
+class _FilterChip(Container):
+    """Compact pill-shaped filter chip."""
+
+    def __init__(self, label: str, active: bool = False, on_click=None):
+        self._label = label
+        self._active = active
+        super().__init__(
+            bgcolor=colors.accent_muted if active else colors.bg_input,
+            border_radius=dimens.RADIUS_PILL,
+            padding=padding.symmetric(
+                horizontal=dimens.SPACE_SM, vertical=dimens.SPACE_XXS
+            ),
+            on_click=on_click,
+            content=Text(
+                label,
+                size=fonts.CAPTION_SIZE,
+                color=colors.text_inverse if active else colors.text_secondary,
+                weight=fonts.BOLD_FONT if active else None,
+            ),
+        )
 
 
 class InvoicingEditorPopUp(DialogHandler, Column):
@@ -142,6 +247,22 @@ class InvoicingEditorPopUp(DialogHandler, Column):
 class InvoicingListView(TView, Column):
     """The view for displaying the list of invoices"""
 
+    # Filter keys
+    _FILTER_ALL = "All"
+    _FILTER_UNPAID = "Unpaid"
+    _FILTER_OVERDUE = "Overdue"
+    _FILTER_SENT = "Sent"
+    _FILTER_PAID = "Paid"
+    _FILTER_CANCELLED = "Cancelled"
+    _FILTERS = [
+        _FILTER_ALL,
+        _FILTER_UNPAID,
+        _FILTER_OVERDUE,
+        _FILTER_SENT,
+        _FILTER_PAID,
+        _FILTER_CANCELLED,
+    ]
+
     def __init__(self, params: TViewParams):
         super().__init__(params=params)
         self.intent = InvoicingIntent(client_storage=params.client_storage)
@@ -151,6 +272,7 @@ class InvoicingListView(TView, Column):
         self.editor = None
         self.time_tracking_data: DataFrame = None
         self.user: User = None
+        self.active_filter: str = self._FILTER_ALL
 
     def load_user_data(
         self,
@@ -212,13 +334,131 @@ class InvoicingListView(TView, Column):
             # reload the data
             self.initialize_data()
 
-    def refresh_invoices(self):
-        """Refreshes the invoices"""
-        self.invoices_list_control.controls.clear()
-        for key in self.invoices_to_display:
+    def _apply_filter(self, invoices: List[Invoice]) -> List[Invoice]:
+        """Return only invoices matching the active filter."""
+        f = self.active_filter
+        if f == self._FILTER_ALL:
+            return invoices
+        if f == self._FILTER_UNPAID:
+            return [i for i in invoices if not i.paid and not i.cancelled]
+        if f == self._FILTER_OVERDUE:
+            return [i for i in invoices if _is_overdue(i)]
+        if f == self._FILTER_SENT:
+            return [i for i in invoices if i.sent and not i.paid and not i.cancelled]
+        if f == self._FILTER_PAID:
+            return [i for i in invoices if i.paid]
+        if f == self._FILTER_CANCELLED:
+            return [i for i in invoices if i.cancelled]
+        return invoices
+
+    def _on_filter_clicked(self, key: str):
+        """Switch the active filter and refresh."""
+
+        def _handler(e):
+            self.active_filter = key
+            self._rebuild_filter_chips()
+            self.refresh_invoices()
+            self.update_self()
+
+        return _handler
+
+    def _rebuild_filter_chips(self):
+        """Rebuild the filter chips row to reflect the active selection."""
+        self.filter_row.controls = [
+            _FilterChip(
+                label=f,
+                active=(f == self.active_filter),
+                on_click=self._on_filter_clicked(f),
+            )
+            for f in self._FILTERS
+        ]
+
+    def _update_summary(self):
+        """Recompute and update the summary metric cards."""
+        all_invoices = list(self.invoices_to_display.values())
+        today = date.today()
+
+        total_invoiced = Decimal(0)
+        total_outstanding = Decimal(0)
+        total_overdue = Decimal(0)
+        overdue_count = 0
+        total_paid = Decimal(0)
+
+        for inv in all_invoices:
             try:
-                invoice = self.invoices_to_display[key]
-                invoiceItemControl = InvoiceTile(
+                amt = inv.total
+            except Exception:
+                amt = Decimal(0)
+            total_invoiced += amt
+            if inv.paid:
+                total_paid += amt
+            elif not inv.cancelled:
+                total_outstanding += amt
+                if _is_overdue(inv):
+                    total_overdue += amt
+                    overdue_count += 1
+
+        # Determine a representative currency
+        currency = ""
+        for inv in all_invoices:
+            try:
+                currency = inv.contract.currency if inv.contract else ""
+            except Exception:
+                pass
+            if currency:
+                break
+
+        def _fmt(v: Decimal) -> str:
+            return f"{v:,.2f} {currency}".strip()
+
+        self.metric_total.content.controls[1].value = _fmt(total_invoiced)
+        self.metric_outstanding.content.controls[1].value = _fmt(total_outstanding)
+        self.metric_outstanding.content.controls[1].color = (
+            colors.accent if total_outstanding > 0 else colors.text_primary
+        )
+        overdue_label = _fmt(total_overdue)
+        self.metric_overdue.content.controls[1].value = overdue_label
+        self.metric_overdue.content.controls[1].color = (
+            colors.danger if overdue_count > 0 else colors.text_primary
+        )
+        # Update sub text
+        if len(self.metric_overdue.content.controls) > 2:
+            self.metric_overdue.content.controls[2].value = (
+                f"{overdue_count} invoice{'s' if overdue_count != 1 else ''}"
+                if overdue_count > 0
+                else ""
+            )
+        self.metric_paid.content.controls[1].value = _fmt(total_paid)
+
+    def refresh_invoices(self):
+        """Refreshes the invoices — sorted, filtered, grouped by month."""
+        all_invoices = list(self.invoices_to_display.values())
+
+        # Update summary metrics (always over the full set)
+        self._update_summary()
+
+        # Apply filter then sort newest-first
+        filtered = self._apply_filter(all_invoices)
+        filtered.sort(key=lambda i: i.date, reverse=True)
+
+        self.invoices_list_control.controls.clear()
+
+        if not filtered:
+            self.no_invoices_control.visible = True
+            return
+        self.no_invoices_control.visible = False
+
+        current_month_label = ""
+        for invoice in filtered:
+            # Month group header
+            month_label = invoice.date.strftime("%B %Y")
+            if month_label != current_month_label:
+                current_month_label = month_label
+                self.invoices_list_control.controls.append(
+                    views.SectionLabel(current_month_label)
+                )
+            try:
+                tile = InvoiceTile(
                     invoice=invoice,
                     on_delete_clicked=self.on_delete_invoice_clicked,
                     on_mail_invoice=self.on_mail_invoice,
@@ -231,11 +471,8 @@ class InvoicingListView(TView, Column):
             except Exception as ex:
                 logger.error(f"Error while refreshing invoice: {ex}")
                 logger.exception(ex)
-                invoiceItemControl = ListTile(
-                    title="Error while refreshing invoice",
-                )
-            finally:
-                self.invoices_list_control.controls.append(invoiceItemControl)
+                tile = ListTile(title=Text("Error while refreshing invoice"))
+            self.invoices_list_control.controls.append(tile)
 
     def on_mail_invoice(self, invoice: Invoice):
         """Called when the user clicks send in the context menu of an invoice"""
@@ -387,37 +624,98 @@ class InvoicingListView(TView, Column):
         self.loading_indicator.visible = False
         if count == 0:
             self.no_invoices_control.visible = True
+            self.summary_row.visible = False
+            self.filter_row.visible = False
         else:
+            self.no_invoices_control.visible = False
+            self.summary_row.visible = True
+            self.filter_row.visible = True
             self.refresh_invoices()
         self.update_self()
 
     def build(self):
         """build the view"""
         self.loading_indicator = views.TProgressBar()
-        self.no_invoices_control = views.TBodyText(
-            txt="You have not created any invoices yet",
-            show=False,
+
+        # ── Empty state ──────────────────────────────────────
+        self.no_invoices_control = Container(
+            visible=False,
+            padding=padding.symmetric(vertical=dimens.SPACE_XXL),
+            alignment=alignment.center,
+            content=Column(
+                horizontal_alignment=utils.CENTER_ALIGNMENT,
+                spacing=dimens.SPACE_SM,
+                controls=[
+                    Icon(icons.RECEIPT_LONG_OUTLINED, size=48, color=colors.text_muted),
+                    views.TBodyText(
+                        "No invoices yet",
+                        size=fonts.HEADLINE_4_SIZE,
+                        color=colors.text_secondary,
+                    ),
+                    views.TBodyText(
+                        "Create your first invoice from a tracked project.",
+                        size=fonts.BODY_2_SIZE,
+                        color=colors.text_muted,
+                    ),
+                ],
+            ),
         )
-        self.title_control = ResponsiveRow(
+
+        # ── Summary metric cards ─────────────────────────────
+        self.metric_total = _MetricCard(label="Total Invoiced", value="—")
+        self.metric_outstanding = _MetricCard(
+            label="Outstanding", value="—", color=colors.accent
+        )
+        self.metric_overdue = _MetricCard(
+            label="Overdue", value="—", color=colors.danger, sub=""
+        )
+        self.metric_paid = _MetricCard(label="Paid", value="—", color=colors.success)
+        self.summary_row = Row(
+            spacing=dimens.SPACE_SM,
+            visible=False,
             controls=[
-                Column(
-                    col={"xs": 12},
-                    controls=[
-                        views.THeading(title="Invoicing", size=fonts.HEADLINE_4_SIZE),
-                        self.loading_indicator,
-                        self.no_invoices_control,
-                    ],
-                )
-            ]
+                self.metric_total,
+                self.metric_outstanding,
+                self.metric_overdue,
+                self.metric_paid,
+            ],
         )
+
+        # ── Filter chips ─────────────────────────────────────
+        self.filter_row = Row(
+            spacing=dimens.SPACE_XS,
+            visible=False,
+            controls=[
+                _FilterChip(
+                    label=f,
+                    active=(f == self.active_filter),
+                    on_click=self._on_filter_clicked(f),
+                )
+                for f in self._FILTERS
+            ],
+        )
+
+        # ── Invoice list ─────────────────────────────────────
         self.invoices_list_control = ListView(
             expand=False,
-            spacing=dimens.SPACE_STD,
+            spacing=dimens.SPACE_XS,
         )
+
+        self.title_control = Row(
+            controls=[
+                views.THeading(title="Invoicing", size=fonts.HEADLINE_4_SIZE),
+            ],
+        )
+
         return Column(
             controls=[
                 self.title_control,
-                views.Spacer(md_space=True),
+                self.loading_indicator,
+                self.summary_row,
+                Container(height=dimens.SPACE_XS),
+                self.filter_row,
+                Container(height=dimens.SPACE_XS),
+                self.no_invoices_control,
                 Container(self.invoices_list_control, expand=True),
             ],
         )
@@ -429,7 +727,9 @@ class InvoicingListView(TView, Column):
 
 
 class InvoiceTile(Container):
-    """Flat bordered container for displaying an invoice in a list."""
+    """Rich invoice tile with left status stripe, quick-action buttons,
+    net/VAT breakdown, due-date display, and overdue badge.
+    """
 
     def __init__(
         self,
@@ -451,20 +751,40 @@ class InvoiceTile(Container):
             if invoice.contract and invoice.contract.client
             else ""
         )
+        overdue = _is_overdue(invoice)
+        stripe_color = _status_color(invoice)
 
+        # ── Due date text ────────────────────────────────────
+        due_parts: list[Control] = []
+        try:
+            due = invoice.due_date
+            if due is not None:
+                due_str = f'Due: {due.strftime("%d-%m-%Y")}'
+                due_color = colors.danger if overdue else colors.text_secondary
+                due_parts.append(
+                    views.TBodyText(due_str, size=fonts.BODY_2_SIZE, color=due_color)
+                )
+        except Exception:
+            pass
+        if overdue:
+            due_parts.append(
+                Container(
+                    bgcolor=colors.danger,
+                    border_radius=dimens.RADIUS_SM,
+                    padding=padding.symmetric(horizontal=6, vertical=2),
+                    content=Text(
+                        "OVERDUE",
+                        size=fonts.CAPTION_SIZE,
+                        color=colors.text_inverse,
+                        weight=fonts.BOLDER_FONT,
+                    ),
+                )
+            )
+
+        # ── Context menu (less-common actions) ───────────────
         context = views.TContextMenu(
             on_click_delete=lambda e: on_delete_clicked(invoice),
             prefix_menu_items=[
-                views.TPopUpMenuItem(
-                    icon=icons.HOURGLASS_BOTTOM_OUTLINED,
-                    txt="Mark as sent" if not invoice.sent else "Mark as not sent",
-                    on_click=lambda e: toggle_sent_status(invoice),
-                ),
-                views.TPopUpMenuItem(
-                    icon=icons.ATTACH_MONEY_OUTLINED,
-                    txt="Mark as paid" if not invoice.paid else "Mark as not paid",
-                    on_click=lambda e: toggle_paid_status(invoice),
-                ),
                 views.TPopUpMenuItem(
                     icon=icons.CANCEL_OUTLINED,
                     txt="Mark as cancelled"
@@ -474,7 +794,7 @@ class InvoiceTile(Container):
                 ),
                 views.TPopUpMenuItem(
                     icon=icons.VISIBILITY_OUTLINED,
-                    txt="View",
+                    txt="View Invoice PDF",
                     on_click=lambda e: on_view_invoice(invoice),
                 ),
                 views.TPopUpMenuItem(
@@ -482,64 +802,170 @@ class InvoiceTile(Container):
                     txt="View Timesheet",
                     on_click=lambda e: on_view_timesheet(invoice),
                 ),
-                views.TPopUpMenuItem(
-                    icon=icons.OUTGOING_MAIL,
-                    txt="Send",
-                    on_click=lambda e: on_mail_invoice(invoice),
+            ],
+        )
+
+        # ── Inline quick-action icon buttons ─────────────────
+        paid_icon = icons.PAYMENTS_OUTLINED if not invoice.paid else icons.PAYMENTS
+        paid_tooltip = "Mark as paid" if not invoice.paid else "Mark as unpaid"
+        paid_color = colors.success if invoice.paid else colors.text_muted
+
+        sent_icon = (
+            icons.MARK_EMAIL_READ_OUTLINED if invoice.sent else icons.OUTGOING_MAIL
+        )
+        sent_tooltip = "Mark as not sent" if invoice.sent else "Send invoice"
+        sent_color = colors.accent if invoice.sent else colors.text_muted
+
+        quick_actions = Row(
+            spacing=0,
+            controls=[
+                IconButton(
+                    icon=paid_icon,
+                    icon_size=dimens.ICON_SIZE,
+                    icon_color=paid_color,
+                    tooltip=paid_tooltip,
+                    on_click=lambda e: toggle_paid_status(invoice),
+                ),
+                IconButton(
+                    icon=sent_icon,
+                    icon_size=dimens.ICON_SIZE,
+                    icon_color=sent_color,
+                    tooltip=sent_tooltip,
+                    on_click=lambda e: (
+                        on_mail_invoice(invoice)
+                        if not invoice.sent
+                        else toggle_sent_status(invoice)
+                    ),
+                ),
+                context,
+            ],
+        )
+
+        # ── Net / VAT / Total breakdown ──────────────────────
+        try:
+            net_val = f"{invoice.sum:,.2f}"
+            vat_val = f"{invoice.VAT_total:,.2f}"
+            total_val = f"{invoice.total:,.2f}"
+        except Exception:
+            net_val = vat_val = total_val = "—"
+
+        amount_block = Column(
+            spacing=0,
+            horizontal_alignment=utils.END_ALIGNMENT,
+            controls=[
+                Text(
+                    f"{total_val} {_currency}",
+                    size=fonts.HEADLINE_4_SIZE,
+                    weight=fonts.BOLD_FONT,
+                    color=colors.text_primary,
+                ),
+                Text(
+                    f"Net {net_val}  ·  VAT {vat_val}",
+                    size=fonts.CAPTION_SIZE,
+                    color=colors.text_muted,
                 ),
             ],
         )
 
+        # ── Status badges row ────────────────────────────────
+        status_badges = Row(
+            spacing=dimens.SPACE_SM,
+            controls=[
+                views.TStatusDisplay(txt="Paid", is_done=invoice.paid),
+                views.TStatusDisplay(txt="Sent", is_done=invoice.sent),
+            ]
+            + (
+                [views.TStatusDisplay(txt="Cancelled", is_done=True)]
+                if invoice.cancelled
+                else []
+            )
+            + due_parts,
+        )
+
+        # ── Assemble tile ────────────────────────────────────
         super().__init__(
             bgcolor=colors.bg_surface,
             border=border.all(dimens.CARD_BORDER_WIDTH, colors.border),
             border_radius=dimens.RADIUS_LG,
-            padding=padding.all(dimens.SPACE_MD),
+            padding=padding.all(0),
             on_hover=self._on_hover,
-            content=Column(
-                spacing=dimens.SPACE_XS,
+            content=Row(
+                spacing=0,
                 controls=[
-                    Row(
-                        controls=[
-                            Row(
-                                spacing=dimens.SPACE_SM,
-                                controls=[
-                                    views.TBodyText(
-                                        invoice.number, weight=fonts.BOLD_FONT
-                                    ),
-                                    views.TBodyText(
-                                        f"{_project_title} \u279e {_client_name}",
-                                        color=colors.text_secondary,
-                                        size=fonts.BODY_2_SIZE,
-                                    ),
-                                ],
-                                vertical_alignment=utils.CENTER_ALIGNMENT,
-                                expand=True,
-                            ),
-                            context,
-                        ],
-                        alignment=utils.SPACE_BETWEEN_ALIGNMENT,
-                        vertical_alignment=utils.CENTER_ALIGNMENT,
+                    # Left color stripe
+                    Container(
+                        width=4,
+                        bgcolor=stripe_color,
+                        border_radius=BorderRadius(
+                            top_left=dimens.RADIUS_LG,
+                            bottom_left=dimens.RADIUS_LG,
+                            top_right=0,
+                            bottom_right=0,
+                        ),
                     ),
-                    Container(height=1, bgcolor=colors.border_subtle),
-                    Row(
-                        spacing=dimens.SPACE_MD,
-                        controls=[
-                            views.TBodyText(
-                                f'Date: {invoice.date.strftime("%d-%m-%Y")}',
-                                size=fonts.BODY_2_SIZE,
-                                color=colors.text_secondary,
-                            ),
-                            views.TBodyText(
-                                f"Total: {invoice.total:.2f} {_currency}",
-                                size=fonts.BODY_2_SIZE,
-                            ),
-                            views.TStatusDisplay(txt="Paid", is_done=invoice.paid),
-                            views.TStatusDisplay(
-                                txt="Cancelled", is_done=invoice.cancelled
-                            ),
-                            views.TStatusDisplay(txt="Sent", is_done=invoice.sent),
-                        ],
+                    # Main content
+                    Container(
+                        expand=True,
+                        padding=padding.only(
+                            left=dimens.SPACE_SM,
+                            right=dimens.SPACE_MD,
+                            top=dimens.SPACE_SM,
+                            bottom=dimens.SPACE_SM,
+                        ),
+                        content=Column(
+                            spacing=dimens.SPACE_XXS,
+                            controls=[
+                                # Top row: number + client  |  amount + quick actions
+                                Row(
+                                    alignment=utils.SPACE_BETWEEN_ALIGNMENT,
+                                    vertical_alignment=utils.CENTER_ALIGNMENT,
+                                    controls=[
+                                        Row(
+                                            spacing=dimens.SPACE_SM,
+                                            expand=True,
+                                            vertical_alignment=utils.CENTER_ALIGNMENT,
+                                            controls=[
+                                                views.TBodyText(
+                                                    invoice.number or "—",
+                                                    weight=fonts.BOLD_FONT,
+                                                ),
+                                                views.TBodyText(
+                                                    _client_name,
+                                                    color=colors.text_primary,
+                                                    size=fonts.BODY_2_SIZE,
+                                                ),
+                                                views.TBodyText(
+                                                    f"· {_project_title}",
+                                                    color=colors.text_secondary,
+                                                    size=fonts.BODY_2_SIZE,
+                                                ),
+                                            ],
+                                        ),
+                                        Row(
+                                            spacing=dimens.SPACE_SM,
+                                            vertical_alignment=utils.CENTER_ALIGNMENT,
+                                            controls=[
+                                                amount_block,
+                                                quick_actions,
+                                            ],
+                                        ),
+                                    ],
+                                ),
+                                # Bottom row: date + due date + badges
+                                Row(
+                                    spacing=dimens.SPACE_MD,
+                                    vertical_alignment=utils.CENTER_ALIGNMENT,
+                                    controls=[
+                                        views.TBodyText(
+                                            f'{invoice.date.strftime("%d %b %Y")}',
+                                            size=fonts.BODY_2_SIZE,
+                                            color=colors.text_secondary,
+                                        ),
+                                        status_badges,
+                                    ],
+                                ),
+                            ],
+                        ),
                     ),
                 ],
             ),
