@@ -1,13 +1,11 @@
 from typing import Optional
 
-import datetime
-
 from ..clients.intent import ClientsIntent
 from ..contracts.intent import ContractsIntent
 from ..core.intent_result import IntentResult
 from ..core.abstractions import CrudIntent
 
-from ...model import Contract, Project
+from ...model import Project
 
 
 class ProjectsIntent(CrudIntent):
@@ -30,28 +28,9 @@ class ProjectsIntent(CrudIntent):
 
     # -- Project-specific logic ------------------------------------------------
 
-    def save_project(
-        self,
-        title: str,
-        description: str,
-        unique_tag: str,
-        start_date: datetime.date,
-        end_date: datetime.date,
-        is_completed: bool = False,
-        contract: Optional[Contract] = None,
-        project: Optional[Project] = None,
-    ) -> IntentResult[Optional[Project]]:
-        """Create a new project, or update if a project is provided."""
-        is_updating = project is not None
-        if not project:
-            project = Project()
-        project.title = title
-        project.description = description
-        project.tag = unique_tag
-        project.start_date = start_date
-        project.end_date = end_date
-        project.is_completed = is_completed
-        project.contract = contract
+    def save_project(self, project: Project) -> IntentResult[Optional[Project]]:
+        """Validate and save a project."""
+        is_updating = project.id is not None
         result = self.save(project)
         if not result.was_intent_successful:
             if is_updating:

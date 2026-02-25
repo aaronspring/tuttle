@@ -1250,10 +1250,12 @@ class EntityDetailScreen(TView, Container):
     entity_name: str = ""
     edit_route: str = ""
 
-    def __init__(self, params: TViewParams, entity_id):
+    def __init__(self, params: TViewParams, entity_id, intent=None):
         TView.__init__(self, params)
         Container.__init__(self)
         self.entity_id = entity_id
+        if intent is not None:
+            self.intent = intent
         self.loading_indicator = TProgressBar()
         self.entity = None
         self.popup_handler = None

@@ -1,7 +1,3 @@
-from typing import Optional
-
-import datetime
-
 from ..clients.intent import ClientsIntent
 from ..contacts.intent import ContactsIntent
 from ..core.abstractions import ClientStorage, CrudIntent
@@ -9,8 +5,7 @@ from ..core.intent_result import IntentResult
 from ..preferences.intent import PreferencesIntent
 from ..preferences.model import PreferencesStorageKeys
 
-from ...model import Client, Contact, Contract
-from ...time import Cycle, TimeUnit
+from ...model import Client, Contract
 
 
 class ContractsIntent(CrudIntent):
@@ -44,42 +39,9 @@ class ContractsIntent(CrudIntent):
 
     # -- Contract-specific logic -----------------------------------------------
 
-    def save_contract(
-        self,
-        title: str,
-        signature_date: datetime.date,
-        start_date: datetime.date,
-        end_date: Optional[datetime.date],
-        client: Client,
-        rate: str,
-        currency: str,
-        VAT_rate: str,
-        unit: TimeUnit,
-        units_per_workday: str,
-        volume: Optional[str],
-        term_of_payment: Optional[str],
-        billing_cycle: Cycle = Cycle.hourly,
-        is_completed: bool = False,
-        contract: Optional[Contract] = None,
-    ) -> IntentResult:
-        """Creates a new contract or updates the given contract."""
-        is_updating = contract is not None
-        if not contract:
-            contract = Contract()
-        contract.title = title
-        contract.signature_date = signature_date
-        contract.start_date = start_date
-        contract.end_date = end_date
-        contract.client = client
-        contract.rate = rate
-        contract.currency = currency
-        contract.VAT_rate = VAT_rate
-        contract.unit = unit
-        contract.units_per_workday = units_per_workday
-        contract.volume = volume
-        contract.term_of_payment = term_of_payment
-        contract.billing_cycle = billing_cycle
-        contract.is_completed = is_completed
+    def save_contract(self, contract: Contract) -> IntentResult:
+        """Validate and save a contract."""
+        is_updating = contract.id is not None
         result = self.save(contract)
         if not result.was_intent_successful and is_updating:
             old = self.get_by_id(contract.id)

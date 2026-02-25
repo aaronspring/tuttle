@@ -136,7 +136,7 @@ class UserDataForm(Column):
             self.phone_field,
             self.subtitle_field,
         ]:
-            field.error_text = ""
+            field.error = ""
         self.toggle_form_err()
         self.update()
 
@@ -164,15 +164,15 @@ class UserDataForm(Column):
         # validate the form data
         if utils.is_empty_str(subtitle):
             missing_required_data_err = "Please specify your job title. e.g. freelancer"
-            self.subtitle_field.error_text = missing_required_data_err
+            self.subtitle_field.error = missing_required_data_err
 
         elif utils.is_empty_str(name):
             missing_required_data_err = "Your name is required."
-            self.name_field.error_text = missing_required_data_err
+            self.name_field.error = missing_required_data_err
 
         elif utils.is_empty_str(email):
             missing_required_data_err = "Your email is required."
-            self.email_field.error_text = missing_required_data_err
+            self.email_field.error = missing_required_data_err
 
         elif (
             utils.is_empty_str(address_street)

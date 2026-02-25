@@ -171,8 +171,8 @@ class ContractEditorScreen(TView, Container):
             self.vat_rate_ui_field,
         ]
         for field in fields:
-            if field.error_text:
-                field.error_text = None
+            if field.error:
+                field.error = None
         self.currency_ui_field.update_error_txt()
         self.update_self()
 
@@ -346,7 +346,7 @@ class ContractEditorScreen(TView, Container):
 
         # check for missing fields
         if not title:
-            self.title_ui_field.error_text = "Contract title is required"
+            self.title_ui_field.error = "Contract title is required"
             self.update_self()
             return  # error occurred, stop here
 
@@ -356,7 +356,7 @@ class ContractEditorScreen(TView, Container):
             return
 
         if not rate:
-            self.rate_ui_field.error_text = "Rate of enumeration is required"
+            self.rate_ui_field.error = "Rate of enumeration is required"
             self.update_self()
             return
 
@@ -366,7 +366,7 @@ class ContractEditorScreen(TView, Container):
             return
 
         if not unit_pw:
-            self.unit_PW_ui_field.error_text = "Units per workday is required"
+            self.unit_PW_ui_field.error = "Units per workday is required"
             self.update_self()
             return
 
@@ -407,22 +407,22 @@ class ContractEditorScreen(TView, Container):
 
         self.toggle_progress(is_on_going_action=True)
 
-        result: IntentResult = self.intent.save_contract(
-            title=title,
-            signature_date=signatureDate,
-            start_date=startDate,
-            end_date=endDate,
-            client=self.client,
-            rate=rate,
-            currency=currency,
-            VAT_rate=vat_rate,
-            unit=time_unit,
-            units_per_workday=unit_pw,
-            volume=volume,
-            term_of_payment=term_of_payment,
-            billing_cycle=billing_cycle,
-            contract=self.old_contract_if_editing,
-        )
+        contract = self.old_contract_if_editing or Contract()
+        contract.title = title
+        contract.signature_date = signatureDate
+        contract.start_date = startDate
+        contract.end_date = endDate
+        contract.client = self.client
+        contract.rate = rate
+        contract.currency = currency
+        contract.VAT_rate = vat_rate
+        contract.unit = time_unit
+        contract.units_per_workday = unit_pw
+        contract.volume = volume
+        contract.term_of_payment = term_of_payment
+        contract.billing_cycle = billing_cycle
+
+        result: IntentResult = self.intent.save_contract(contract)
         success_msg = (
             "Changes saved"
             if self.contract_id_if_editing
