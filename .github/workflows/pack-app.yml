@@ -7,13 +7,22 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-latest", "windows-latest", "ubuntu-latest"]
+        include:
+          - os: macos-latest
+            platform: macos-arm64
+          - os: windows-latest
+            platform: windows
+          - os: ubuntu-latest
+            platform: linux
 
     steps:
     - uses: actions/checkout@v4
@@ -27,7 +36,17 @@ jobs:
       run: uv sync --all-groups
     - name: Build app bundle
       run: uv run python scripts/pack_app.py
+    - name: Create zip archive
+      shell: bash
+      run: |
+        cd dist
+        zip -r ../Tuttle-${{ github.ref_name }}-${{ matrix.platform }}.zip .
     - uses: actions/upload-artifact@v4
       with:
-        name: Tuttle-${{ github.ref_name }}-${{ matrix.os }}
+        name: Tuttle-${{ github.ref_name }}-${{ matrix.platform }}
         path: dist/
+    - name: Upload release asset
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: Tuttle-${{ github.ref_name }}-${{ matrix.platform }}.zip
