@@ -7,6 +7,7 @@ import functools
 
 from flet import AlertDialog, FilePicker
 
+import sqlalchemy
 import sqlmodel
 from sqlmodel import pool
 
@@ -191,6 +192,11 @@ class SQLModelDataSourceMixin:
             connect_args={"check_same_thread": False},
             poolclass=pool.StaticPool,
         )
+        sqlalchemy.event.listen(
+            self.db_engine,
+            "connect",
+            lambda dbapi_conn, _: dbapi_conn.execute("PRAGMA foreign_keys = ON"),
+        )
 
     def create_session(self):
         return sqlmodel.Session(
@@ -265,12 +271,20 @@ class SQLModelDataSourceMixin:
             session.refresh(entity)
 
     def delete_by_id(self, entity_type: Type[sqlmodel.SQLModel], entity_id: int):
-        """Deletes the entity of the given type with the given id from the database"""
+        """Deletes the entity of the given type with the given id from the database.
+
+        Uses ORM-level delete so that cascade relationships are honoured.
+        Raises ``sqlalchemy.exc.IntegrityError`` when a foreign-key
+        constraint prevents the deletion (e.g. entity is still referenced).
+        """
         logger.debug(f"deleting {entity_type} with id={entity_id}")
         with self.create_session() as session:
-            session.exec(
-                sqlmodel.delete(entity_type).where(entity_type.id == entity_id)
-            )
+            entity = session.get(entity_type, entity_id)
+            if entity is None:
+                raise ValueError(
+                    f"{entity_type.__name__} with id={entity_id} not found"
+                )
+            session.delete(entity)
             session.commit()
 
 
@@ -301,10 +315,18 @@ class CrudIntent(SQLModelDataSourceMixin, Intent):
 
     Subclasses must set `entity_type` to the SQLModel class they manage.
     Optionally set `entity_name` for human-readable error messages.
+
+    To prevent deletion when related records exist, set ``deletion_guards``
+    to a list of ``(relationship_attr, label, display_func)`` tuples.
+    *relationship_attr* is the attribute name on the entity that holds the
+    referencing collection, *label* is a human-readable noun (plural) for
+    the error message, and *display_func* extracts a short display string
+    from each related object.
     """
 
     entity_type: Type[sqlmodel.SQLModel]
     entity_name: str = ""
+    deletion_guards: List[tuple] = []
 
     def __init__(self):
         SQLModelDataSourceMixin.__init__(self)
@@ -361,10 +383,45 @@ class CrudIntent(SQLModelDataSourceMixin, Intent):
             )
 
     def delete(self, entity_id) -> IntentResult:
-        """Delete an entity by its id."""
+        """Delete an entity by its id.
+
+        Checks ``deletion_guards`` first to produce a user-friendly message
+        when related records still reference this entity.  Falls back to the
+        database-level ``IntegrityError`` as a safety net.
+        """
+        if self.deletion_guards:
+            result = self.get_by_id(entity_id)
+            if not result.was_intent_successful:
+                return result
+            entity = result.data
+            for attr, label, display_fn in self.deletion_guards:
+                related = getattr(entity, attr, None) or []
+                if related:
+                    names = ", ".join(display_fn(r) for r in related)
+                    entity_desc = getattr(entity, "name", None) or getattr(
+                        entity, "title", f"#{entity_id}"
+                    )
+                    return IntentResult(
+                        was_intent_successful=False,
+                        error_msg=(
+                            f"Cannot delete {self.entity_name} "
+                            f"'{entity_desc}' because it is "
+                            f"referenced by {label}: {names}"
+                        ),
+                    )
         try:
             self.delete_by_id(self.entity_type, entity_id)
             return IntentResult(was_intent_successful=True)
+        except sqlalchemy.exc.IntegrityError as e:
+            return IntentResult(
+                was_intent_successful=False,
+                error_msg=(
+                    f"Cannot delete this {self.entity_name} because it is "
+                    f"still referenced by other records."
+                ),
+                log_message=f"{self.__class__.__name__}.delete({entity_id}): {e}",
+                exception=e,
+            )
         except Exception as e:
             return IntentResult(
                 was_intent_successful=False,

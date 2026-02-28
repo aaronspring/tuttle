@@ -12,6 +12,10 @@ class ContractsIntent(CrudIntent):
     """Handles Contract CRUD intents."""
 
     entity_type = Contract
+    deletion_guards = [
+        ("projects", "projects", lambda p: p.title),
+        ("invoices", "invoices", lambda i: i.number or f"#{i.id}"),
+    ]
 
     def __init__(self):
         super().__init__()

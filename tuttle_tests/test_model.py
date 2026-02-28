@@ -222,3 +222,122 @@ class TestProject:
                     end_date=datetime.date(2022, 12, 31),
                 )
             )
+
+
+# ---------------------------------------------------------------------------
+# Deletion guard / referential integrity tests
+# ---------------------------------------------------------------------------
+
+
+def _make_engine_with_fk(tmp_path):
+    """Create an in-memory SQLite engine with FK enforcement enabled."""
+    import sqlalchemy as sa
+
+    db_path = tmp_path / "integrity_test.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    sa.event.listen(
+        engine, "connect", lambda c, _: c.execute("PRAGMA foreign_keys = ON")
+    )
+    SQLModel.metadata.create_all(engine)
+    return engine
+
+
+def _seed(session):
+    """Insert a minimal entity chain: Address -> Contact -> Client -> Contract -> Project."""
+    from tuttle.model import Cycle, TimeUnit
+
+    addr = Address(
+        street="1st St", number="1", city="C", postal_code="00000", country="US"
+    )
+    contact = Contact(
+        first_name="Jane", last_name="Doe", email="jane@example.com", address=addr
+    )
+    client = Client(name="Acme", invoicing_contact=contact)
+    contract = Contract(
+        title="Support",
+        client=client,
+        signature_date=datetime.date(2024, 1, 1),
+        start_date=datetime.date(2024, 1, 1),
+        end_date=datetime.date(2024, 12, 31),
+        rate=100,
+        currency="EUR",
+        billing_cycle=Cycle.monthly,
+        unit=TimeUnit.hour,
+    )
+    project = Project(
+        title="Website",
+        description="Build a website",
+        tag="#website",
+        start_date=datetime.date(2024, 1, 1),
+        end_date=datetime.date(2024, 6, 30),
+        contract=contract,
+    )
+    session.add(project)
+    session.commit()
+    session.refresh(contact)
+    session.refresh(client)
+    session.refresh(contract)
+    session.refresh(project)
+    return contact, client, contract, project
+
+
+class TestDeletionGuards:
+    """Verify that entities referenced by others cannot be deleted."""
+
+    def test_cannot_delete_contact_used_by_client(self, tmp_path):
+        engine = _make_engine_with_fk(tmp_path)
+        with Session(engine, expire_on_commit=False) as s:
+            contact, client, _, _ = _seed(s)
+        with Session(engine) as s:
+            c = s.get(Contact, contact.id)
+            s.delete(c)
+            with pytest.raises(Exception):
+                s.commit()
+
+    def test_cannot_delete_client_used_by_contract(self, tmp_path):
+        engine = _make_engine_with_fk(tmp_path)
+        with Session(engine, expire_on_commit=False) as s:
+            _, client, _, _ = _seed(s)
+        with Session(engine) as s:
+            c = s.get(Client, client.id)
+            s.delete(c)
+            with pytest.raises(Exception):
+                s.commit()
+
+    def test_cannot_delete_contract_used_by_project(self, tmp_path):
+        engine = _make_engine_with_fk(tmp_path)
+        with Session(engine, expire_on_commit=False) as s:
+            _, _, contract, _ = _seed(s)
+        with Session(engine) as s:
+            c = s.get(Contract, contract.id)
+            s.delete(c)
+            with pytest.raises(Exception):
+                s.commit()
+
+    def test_can_delete_project_without_references(self, tmp_path):
+        engine = _make_engine_with_fk(tmp_path)
+        with Session(engine, expire_on_commit=False) as s:
+            _, _, _, project = _seed(s)
+        with Session(engine) as s:
+            p = s.get(Project, project.id)
+            s.delete(p)
+            s.commit()
+            assert s.get(Project, project.id) is None
+
+    def test_can_delete_leaf_to_root_sequentially(self, tmp_path):
+        """Deleting in reverse dependency order must succeed."""
+        engine = _make_engine_with_fk(tmp_path)
+        with Session(engine, expire_on_commit=False) as s:
+            contact, client, contract, project = _seed(s)
+        with Session(engine) as s:
+            s.delete(s.get(Project, project.id))
+            s.commit()
+        with Session(engine) as s:
+            s.delete(s.get(Contract, contract.id))
+            s.commit()
+        with Session(engine) as s:
+            s.delete(s.get(Client, client.id))
+            s.commit()
+        with Session(engine) as s:
+            s.delete(s.get(Contact, contact.id))
+            s.commit()

@@ -12,6 +12,10 @@ class ProjectsIntent(CrudIntent):
     """Handles intents related to the projects data UI."""
 
     entity_type = Project
+    deletion_guards = [
+        ("invoices", "invoices", lambda i: i.number or f"#{i.id}"),
+        ("timesheets", "timesheets", lambda t: t.title),
+    ]
 
     def __init__(self):
         super().__init__()

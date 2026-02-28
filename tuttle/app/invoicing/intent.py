@@ -72,7 +72,7 @@ class InvoicingIntent(Intent):
             return {}
 
     def delete_invoice_by_id(self, invoice_id) -> IntentResult[None]:
-        """Delete an invoice by id."""
+        """Delete an invoice by id (cascades to timesheets and invoice items)."""
         try:
             self._invoicing_data_source.delete_invoice_by_id(invoice_id)
             return IntentResult(was_intent_successful=True)
@@ -81,7 +81,7 @@ class InvoicingIntent(Intent):
             logger.exception(ex)
             return IntentResult(
                 was_intent_successful=False,
-                error_msg="Could not delete invoice. ",
+                error_msg="Could not delete invoice.",
             )
 
     def create_invoice(

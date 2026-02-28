@@ -210,7 +210,8 @@ class Contact(SQLModel, table=True):
         back_populates="contacts", sa_relationship_kwargs={"lazy": "subquery"}
     )
     invoicing_contact_of: List["Client"] = Relationship(
-        back_populates="invoicing_contact", sa_relationship_kwargs={"lazy": "subquery"}
+        back_populates="invoicing_contact",
+        sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
     # post address
 
@@ -267,13 +268,16 @@ class Client(SQLModel, table=True):
         description="Name of the client.",
     )
     # Client 1:1 invoicing Contact
-    invoicing_contact_id: int = Field(default=None, foreign_key="contact.id")
+    invoicing_contact_id: int = Field(
+        default=None, foreign_key="contact.id", ondelete="RESTRICT"
+    )
     invoicing_contact: Contact = Relationship(
         back_populates="invoicing_contact_of",
         sa_relationship_kwargs={"lazy": "subquery"},
     )
     contracts: List["Contract"] = Relationship(
-        back_populates="client", sa_relationship_kwargs={"lazy": "subquery"}
+        back_populates="client",
+        sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
     # non-invoice related contact person?
 
@@ -303,6 +307,7 @@ class Contract(SQLModel, table=True):
     client_id: Optional[int] = Field(
         default=None,
         foreign_key="client.id",
+        ondelete="RESTRICT",
     )
     rate: condecimal(decimal_places=2) = Field(
         description="Rate of remuneration",
@@ -336,10 +341,12 @@ class Contract(SQLModel, table=True):
         description="How often is an invoice sent?",
     )
     projects: List["Project"] = Relationship(
-        back_populates="contract", sa_relationship_kwargs={"lazy": "subquery"}
+        back_populates="contract",
+        sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
     invoices: List["Invoice"] = Relationship(
-        back_populates="contract", sa_relationship_kwargs={"lazy": "subquery"}
+        back_populates="contract",
+        sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
     # TODO: model contractual promises like "at least 2 days per week"
 
@@ -396,7 +403,9 @@ class Project(SQLModel, table=True):
         default=False, description="marks if the project is completed"
     )
     # Project m:n Contract
-    contract_id: Optional[int] = Field(default=None, foreign_key="contract.id")
+    contract_id: Optional[int] = Field(
+        default=None, foreign_key="contract.id", ondelete="RESTRICT"
+    )
     contract: Contract = Relationship(
         back_populates="projects",
         sa_relationship_kwargs={"lazy": "subquery"},
@@ -404,12 +413,12 @@ class Project(SQLModel, table=True):
     # Project 1:n Timesheet
     timesheets: List["Timesheet"] = Relationship(
         back_populates="project",
-        sa_relationship_kwargs={"lazy": "subquery"},
+        sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
     # Project 1:n Invoice
     invoices: List["Invoice"] = Relationship(
         back_populates="project",
-        sa_relationship_kwargs={"lazy": "subquery"},
+        sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
 
     def __repr__(self):
@@ -471,7 +480,9 @@ class Project(SQLModel, table=True):
 class TimeTrackingItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     # TimeTrackingItem n : 1 TimeSheet
-    timesheet_id: Optional[int] = Field(default=None, foreign_key="timesheet.id")
+    timesheet_id: Optional[int] = Field(
+        default=None, foreign_key="timesheet.id", ondelete="CASCADE"
+    )
     timesheet: Optional["Timesheet"] = Relationship(back_populates="items")
     #
     begin: datetime.datetime = Field(description="Start time of the time interval.")
@@ -498,7 +509,9 @@ class Timesheet(SQLModel, table=True):
     )
 
     # Timesheet n:1 Project
-    project_id: Optional[int] = Field(default=None, foreign_key="project.id")
+    project_id: Optional[int] = Field(
+        default=None, foreign_key="project.id", ondelete="RESTRICT"
+    )
     project: Project = Relationship(
         back_populates="timesheets",
         sa_relationship_kwargs={"lazy": "subquery"},
@@ -520,7 +533,9 @@ class Timesheet(SQLModel, table=True):
     )
 
     # Timesheet n:1 Invoice
-    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
+    invoice_id: Optional[int] = Field(
+        default=None, foreign_key="invoice.id", ondelete="CASCADE"
+    )
     invoice: Optional["Invoice"] = Relationship(
         back_populates="timesheets",
         sa_relationship_kwargs={"lazy": "subquery"},
@@ -564,14 +579,18 @@ class Invoice(SQLModel, table=True):
 
     # RELATIONSHIPTS
 
-    # Invoice n:1 Contract ?
-    contract_id: Optional[int] = Field(default=None, foreign_key="contract.id")
+    # Invoice n:1 Contract
+    contract_id: Optional[int] = Field(
+        default=None, foreign_key="contract.id", ondelete="RESTRICT"
+    )
     contract: Contract = Relationship(
         back_populates="invoices",
         sa_relationship_kwargs={"lazy": "subquery"},
     )
     # Invoice n:1 Project
-    project_id: Optional[int] = Field(default=None, foreign_key="project.id")
+    project_id: Optional[int] = Field(
+        default=None, foreign_key="project.id", ondelete="RESTRICT"
+    )
     project: Project = Relationship(
         back_populates="invoices",
         sa_relationship_kwargs={"lazy": "subquery"},
@@ -669,7 +688,9 @@ class InvoiceItem(SQLModel, table=True):
     description: str
     VAT_rate: Decimal
     # invoice
-    invoice_id: Optional[int] = Field(default=None, foreign_key="invoice.id")
+    invoice_id: Optional[int] = Field(
+        default=None, foreign_key="invoice.id", ondelete="CASCADE"
+    )
     invoice: Invoice = Relationship(
         back_populates="items",
         sa_relationship_kwargs={"lazy": "subquery"},

@@ -9,6 +9,9 @@ class ClientsIntent(CrudIntent):
 
     entity_type = Client
     entity_name = "client"
+    deletion_guards = [
+        ("contracts", "contracts", lambda c: c.title),
+    ]
 
     def __init__(self):
         super().__init__()
