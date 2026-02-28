@@ -52,6 +52,14 @@ for src, dst in added_files:
     added_data_options += ["--add-data", f"{src}{get_delimiter()}{dst}"]
 pack_options_unpacked = [item for pair in pack_options for item in pair]
 
+# packages with non-Python data files that PyInstaller misses
+collect_data_packages = [
+    "rfc3987_syntax",
+]
+collect_data_options = []
+for pkg in collect_data_packages:
+    collect_data_options += ["--collect-data", pkg]
+
 
 def main(
     install_dir: Optional[Path] = typer.Option(
@@ -64,7 +72,10 @@ def main(
 
     logger.info("building app")
     pack_command = (
-        ["flet", "pack", app_path] + added_data_options + pack_options_unpacked
+        ["flet", "pack", app_path]
+        + added_data_options
+        + collect_data_options
+        + pack_options_unpacked
     )
     logger.info(f"calling flet with command: {' '.join(pack_command)}")
     print(pack_command)
