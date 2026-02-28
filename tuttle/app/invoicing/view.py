@@ -1,5 +1,6 @@
 from typing import Callable, List, Optional
 
+import calendar as _calendar
 import datetime as _dt
 from datetime import datetime, timedelta, date
 from decimal import Decimal
@@ -284,6 +285,19 @@ class InvoicingEditorPopUp(DialogHandler, Column):
             size=fonts.BODY_2_SIZE,
             visible=False,
         )
+        date_presets_row = Row(
+            spacing=dimens.SPACE_XS,
+            controls=[
+                _FilterChip(
+                    label=label, on_click=self._make_date_preset_handler(months_back)
+                )
+                for label, months_back in [
+                    ("This Month", 0),
+                    ("Last Month", 1),
+                    ("2 Months Ago", 2),
+                ]
+            ],
+        )
         dialog = AlertDialog(
             bgcolor=colors.bg_surface,
             content=Container(
@@ -307,6 +321,7 @@ class InvoicingEditorPopUp(DialogHandler, Column):
                         self.projects_dropdown,
                         views.Spacer(),
                         views.SectionLabel("Date Range"),
+                        date_presets_row,
                         self.from_date_field,
                         self.to_date_field,
                         views.Spacer(xs_space=True),
@@ -323,6 +338,24 @@ class InvoicingEditorPopUp(DialogHandler, Column):
         super().__init__(dialog=dialog, dialog_controller=dialog_controller)
         self.project = self.invoice.project if is_editing else None
         self.on_submit = on_submit
+
+    def _make_date_preset_handler(self, months_back: int):
+        """Return a click handler that sets the date range to a full month."""
+
+        def _handler(e):
+            today = date.today()
+            year = today.year
+            month = today.month - months_back
+            while month < 1:
+                month += 12
+                year -= 1
+            first_day = date(year, month, 1)
+            last_day = date(year, month, _calendar.monthrange(year, month)[1])
+            self.from_date_field.set_date(first_day)
+            self.to_date_field.set_date(last_day)
+            self.dialog.update()
+
+        return _handler
 
     def _show_error(self, message: str):
         """Display an inline error message inside the dialog."""
