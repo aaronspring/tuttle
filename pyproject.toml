@@ -72,6 +72,8 @@ packages = ["tuttle"]
 
 [tool.pytest.ini_options]
 collect_ignore = ["setup.py"]
+markers = ["gui: tests that open a GUI window (deselected by default)"]
+addopts = "-m 'not gui'"
 
 [tool.flake8]
 exclude = ["docs", ".venv"]
