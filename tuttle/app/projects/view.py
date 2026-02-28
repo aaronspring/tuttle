@@ -170,38 +170,32 @@ class ViewProjectScreen(views.EntityDetailScreen):
         super().__init__(params, project_id, ProjectsIntent())
 
     def display_entity_data(self):
-        """displays the project data on the screen"""
         p = self.entity
-        has_contract = True if p.contract else False
-        has_client = True if has_contract and p.contract.client else False
+        has_contract = p.contract is not None
+        has_client = has_contract and p.contract.client is not None
 
         self.project_title_control.value = p.title
         self.client_control.value = (
-            f"Client {p.contract.client.name}" if has_client else "Client not specified"
+            p.contract.client.name if has_client else "Client not specified"
         )
         self.contract_control.value = (
-            f"Contract Title: {p.contract.title}"
-            if has_contract
-            else "Contract not specified"
+            p.contract.title if has_contract else "Contract not specified"
         )
-        self.project_description_control.value = p.description
-        self.project_start_date_control.value = f"Start Date: {p.start_date}"
-        self.project_end_date_control.value = f"End Date: {p.end_date}"
+        self.update_field_rows(p)
         _status = p.get_status(default="")
         if _status:
             self.project_status_control.value = f"Status {_status}"
             self.project_status_control.visible = True
         else:
             self.project_status_control.visible = False
-        self.project_tagline_control.value = f"{p.tag}"
-        is_project_completed = p.is_completed
+        self.project_tagline_control.value = str(p.tag) if p.tag else ""
         self.toggle_complete_status_btn.icon = (
             Icons.RADIO_BUTTON_CHECKED_OUTLINED
-            if is_project_completed
+            if p.is_completed
             else Icons.RADIO_BUTTON_UNCHECKED_OUTLINED
         )
         self.toggle_complete_status_btn.tooltip = (
-            "Mark as incomplete" if is_project_completed else "Mark as complete"
+            "Mark as incomplete" if p.is_completed else "Mark as complete"
         )
 
     def on_view_client_clicked(self, e):
@@ -248,19 +242,8 @@ class ViewProjectScreen(views.EntityDetailScreen):
         )
 
         self.project_title_control = views.THeading()
-
         self.client_control = views.TSubHeading(color=colors.text_secondary)
         self.contract_control = views.TSubHeading(color=colors.text_secondary)
-        self.project_description_control = views.TBodyText(
-            align=utils.TXT_ALIGN_JUSTIFY
-        )
-
-        self.project_start_date_control = views.TSubHeading(
-            size=fonts.BUTTON_SIZE, color=colors.text_secondary
-        )
-        self.project_end_date_control = views.TSubHeading(
-            size=fonts.BUTTON_SIZE, color=colors.text_secondary
-        )
 
         self.project_status_control = views.TSubHeading(
             size=fonts.BUTTON_SIZE, color=colors.accent
@@ -269,7 +252,15 @@ class ViewProjectScreen(views.EntityDetailScreen):
             size=fonts.BUTTON_SIZE, color=colors.accent
         )
 
-        page_view = Row(
+        field_rows = self.build_field_rows(
+            [
+                ("Description", "description"),
+                ("Start Date", "start_date"),
+                ("End Date", "end_date"),
+            ]
+        )
+
+        self.content = Row(
             [
                 Container(
                     padding=Padding.all(dimens.SPACE_STD),
@@ -341,12 +332,7 @@ class ViewProjectScreen(views.EntityDetailScreen):
                                 ],
                             ),
                             views.Spacer(md_space=True),
-                            views.TSubHeading(
-                                subtitle="Project Description",
-                            ),
-                            self.project_description_control,
-                            self.project_start_date_control,
-                            self.project_end_date_control,
+                            *field_rows,
                             views.Spacer(md_space=True),
                             Row(
                                 spacing=dimens.SPACE_STD,
@@ -380,7 +366,6 @@ class ViewProjectScreen(views.EntityDetailScreen):
             vertical_alignment=utils.START_ALIGNMENT,
             expand=True,
         )
-        self.content = page_view
 
 
 class ProjectsListView(views.CrudListView):

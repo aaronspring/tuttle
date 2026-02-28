@@ -614,30 +614,16 @@ class ViewContractScreen(views.EntityDetailScreen):
         super().__init__(params, contract_id, ContractsIntent())
 
     def display_entity_data(self):
-        """Displays the data for the contract."""
         c = self.entity
         self.contract_title_control.value = c.title
         self.client_control.value = c.client.name if c.client else "Unknown"
-        self.start_date_control.value = c.start_date
-        self.end_date_control.value = c.end_date
+        self.update_field_rows(c)
         _status = c.get_status(default="")
         if _status:
             self.status_control.value = f"Status {_status}"
             self.status_control.visible = True
         else:
             self.status_control.visible = False
-        self.billing_cycle_control.value = (
-            c.billing_cycle.value if c.billing_cycle else ""
-        )
-        self.rate_control.value = c.rate
-        self.currency_control.value = c.currency
-        self.vat_rate_control.value = f"{(c.VAT_rate) * 100:.0f} %"
-        time_unit = c.unit.value if c.unit else ""
-        self.unit_control.value = time_unit
-        self.units_per_workday_control.value = f"{c.units_per_workday} {time_unit}"
-        self.volume_control.value = f"{c.volume} {time_unit}"
-        self.term_of_payment_control.value = f"{c.term_of_payment} days"
-        self.signature_date_control.value = c.signature_date
         self.toggle_compete_status_btn.tooltip = (
             "Mark as incomplete" if c.is_completed else "Mark as completed"
         )
@@ -648,7 +634,6 @@ class ViewContractScreen(views.EntityDetailScreen):
         )
 
     def build(self):
-        """Called when page is built"""
         self.edit_contract_btn = IconButton(
             icon=Icons.EDIT_OUTLINED,
             tooltip="Edit contract",
@@ -670,23 +655,40 @@ class ViewContractScreen(views.EntityDetailScreen):
             icon_size=dimens.ICON_SIZE,
         )
 
-        self.client_control = views.THeading()
         self.contract_title_control = views.THeading()
-        self.billing_cycle_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.rate_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.currency_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.vat_rate_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.unit_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.units_per_workday_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.volume_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.term_of_payment_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-
-        self.signature_date_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.start_date_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-        self.end_date_control = views.TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
-
+        self.client_control = views.THeading()
         self.status_control = views.TBodyText(
             size=fonts.BUTTON_SIZE, color=colors.accent
+        )
+
+        _unit = lambda c: c.unit.value if c.unit else ""
+        field_rows = self.build_field_rows(
+            [
+                ("Billing Cycle", "billing_cycle"),
+                ("Rate", "rate"),
+                ("Currency", "currency"),
+                (
+                    "VAT Rate",
+                    lambda c: f"{float(c.VAT_rate) * 100:.0f} %"
+                    if c.VAT_rate is not None
+                    else "",
+                ),
+                ("Time Unit", "unit"),
+                ("Units per Workday", lambda c: f"{c.units_per_workday} {_unit(c)}"),
+                (
+                    "Volume",
+                    lambda c: f"{c.volume} {_unit(c)}" if c.volume is not None else "",
+                ),
+                (
+                    "Term of Payment",
+                    lambda c: f"{c.term_of_payment} days"
+                    if c.term_of_payment is not None
+                    else "",
+                ),
+                ("Signed on Date", "signature_date"),
+                ("Start Date", "start_date"),
+                ("End Date", "end_date"),
+            ]
         )
 
         self.content = Row(
@@ -759,27 +761,7 @@ class ViewContractScreen(views.EntityDetailScreen):
                                 ],
                             ),
                             views.Spacer(md_space=True),
-                            self.get_body_element(
-                                "Billing Cycle", self.billing_cycle_control
-                            ),
-                            self.get_body_element("Rate", self.rate_control),
-                            self.get_body_element("Currency", self.currency_control),
-                            self.get_body_element("Vat Rate", self.vat_rate_control),
-                            self.get_body_element("Time Unit", self.unit_control),
-                            self.get_body_element(
-                                "Units per Workday", self.units_per_workday_control
-                            ),
-                            self.get_body_element("Volume", self.volume_control),
-                            self.get_body_element(
-                                "Term of Payment (days)", self.term_of_payment_control
-                            ),
-                            self.get_body_element(
-                                "Signed on Date", self.signature_date_control
-                            ),
-                            self.get_body_element(
-                                "Start Date", self.start_date_control
-                            ),
-                            self.get_body_element("End Date", self.end_date_control),
+                            *field_rows,
                             views.Spacer(md_space=True),
                             Row(
                                 spacing=dimens.SPACE_STD,

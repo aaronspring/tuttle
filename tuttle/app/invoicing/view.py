@@ -241,18 +241,20 @@ class InvoicingEditorPopUp(DialogHandler, Column):
             an invoice object to edit, defaults to None if a new one is to be created
     """
 
+    _MODE_TIMETRACKING = "timetracking"
+    _MODE_MANUAL = "manual"
+
     def __init__(
         self,
         dialog_controller: Callable[[any, utils.AlertDialogControls], None],
         on_submit: Callable,
         projects_map,
         invoice: Optional[Invoice] = None,
+        has_timetracking_data: bool = True,
     ):
-        # set the dimensions of the pop up
         pop_up_height = dimens.MIN_WINDOW_HEIGHT * 0.9
         pop_up_width = int(dimens.MIN_WINDOW_WIDTH * 0.8)
 
-        # initialize the data
         today = datetime.today()
         yesterday = datetime.now() - timedelta(1)
         is_editing = invoice is not None
@@ -263,6 +265,12 @@ class InvoicingEditorPopUp(DialogHandler, Column):
             for id, project in self.projects_as_map.items()
         ]
         title = "Edit Invoice" if is_editing else "New Invoice"
+
+        self._has_timetracking_data = has_timetracking_data
+        self._mode = (
+            self._MODE_TIMETRACKING if has_timetracking_data else self._MODE_MANUAL
+        )
+
         self.date_field = views.DateSelector(
             label="Invoice Date",
             initial_date=self.invoice.date,
@@ -285,6 +293,21 @@ class InvoicingEditorPopUp(DialogHandler, Column):
             size=fonts.BODY_2_SIZE,
             visible=False,
         )
+
+        # Mode toggle
+        self._mode_row = Row(
+            spacing=dimens.SPACE_XS,
+            controls=self._build_mode_chips(),
+        )
+
+        # Quantity field (manual mode only); label adapts to the contract unit
+        self.quantity_field = views.TTextField(
+            label="Quantity (hours)",
+            hint="e.g. 40",
+            keyboard_type=utils.KEYBOARD_NUMBER,
+            show=self._is_manual,
+        )
+
         date_presets_row = Row(
             spacing=dimens.SPACE_XS,
             controls=[
@@ -316,6 +339,8 @@ class InvoicingEditorPopUp(DialogHandler, Column):
                             show=is_editing,
                         ),
                         views.Spacer(xs_space=True),
+                        self._mode_row,
+                        views.Spacer(xs_space=True),
                         self.date_field,
                         views.Spacer(xs_space=True),
                         self.projects_dropdown,
@@ -324,6 +349,8 @@ class InvoicingEditorPopUp(DialogHandler, Column):
                         date_presets_row,
                         self.from_date_field,
                         self.to_date_field,
+                        views.Spacer(xs_space=True),
+                        self.quantity_field,
                         views.Spacer(xs_space=True),
                         self.error_text,
                     ],
@@ -338,6 +365,35 @@ class InvoicingEditorPopUp(DialogHandler, Column):
         super().__init__(dialog=dialog, dialog_controller=dialog_controller)
         self.project = self.invoice.project if is_editing else None
         self.on_submit = on_submit
+
+    @property
+    def _is_manual(self) -> bool:
+        return self._mode == self._MODE_MANUAL
+
+    def _build_mode_chips(self):
+        tt_click = (
+            (lambda e: self._set_mode(self._MODE_TIMETRACKING))
+            if self._has_timetracking_data
+            else None
+        )
+        return [
+            _FilterChip(
+                label="From Time Tracking",
+                active=not self._is_manual,
+                on_click=tt_click,
+            ),
+            _FilterChip(
+                label="Manual Entry",
+                active=self._is_manual,
+                on_click=lambda e: self._set_mode(self._MODE_MANUAL),
+            ),
+        ]
+
+    def _set_mode(self, mode: str):
+        self._mode = mode
+        self.quantity_field.visible = self._is_manual
+        self._mode_row.controls = self._build_mode_chips()
+        self.dialog.update()
 
     def _make_date_preset_handler(self, months_back: int):
         """Return a click handler that sets the date range to a full month."""
@@ -363,12 +419,19 @@ class InvoicingEditorPopUp(DialogHandler, Column):
         self.error_text.visible = True
         self.dialog.update()
 
+    def _unit_label(self) -> str:
+        """Return a human-readable unit label from the selected project's contract."""
+        if self.project and self.project.contract and self.project.contract.unit:
+            return f"{self.project.contract.unit.value}s"
+        return "hours"
+
     def on_project_selected(self, e):
         selected_project = e.control.value
-        # extract id from selected text
         id_ = int(selected_project.split(" ")[0])
         if id_ in self.projects_as_map:
             self.project = self.projects_as_map[id_]
+            self.quantity_field.label = f"Quantity ({self._unit_label()})"
+            self.dialog.update()
 
     def on_submit_btn_clicked(self, e):
         """Called when the "Done" button is clicked"""
@@ -388,8 +451,24 @@ class InvoicingEditorPopUp(DialogHandler, Column):
             self._show_error("The start date cannot be after the end date.")
             return
 
+        manual_quantity: Optional[float] = None
+        if self._is_manual:
+            raw = (self.quantity_field.value or "").strip()
+            unit = self._unit_label()
+            if not raw:
+                self._show_error(f"Please enter the number of {unit}.")
+                return
+            try:
+                manual_quantity = float(raw)
+            except ValueError:
+                self._show_error(f"The number of {unit} must be a valid number.")
+                return
+            if manual_quantity <= 0:
+                self._show_error(f"The number of {unit} must be greater than zero.")
+                return
+
         self.close_dialog()
-        self.on_submit(self.invoice, self.project, from_date, to_date)
+        self.on_submit(self.invoice, self.project, from_date, to_date, manual_quantity)
 
 
 class InvoicingListView(TView, Column):
@@ -461,21 +540,15 @@ class InvoicingListView(TView, Column):
     def parent_intent_listener(self, intent: str, data: any):
         """Handles the intent from the parent view"""
         if intent == res_utils.CREATE_INVOICE_INTENT:
-            # create a new invoice
             if self.is_user_missing_payment_info():
-                return  # can't create invoice without payment info
-            if self.time_tracking_data is None:
-                self.show_snack(
-                    "You need to import time tracking data before invoices can be created.",
-                    is_error=True,
-                )
-                return  # can't create invoice without time tracking data
+                return
             if self.editor is not None:
                 self.editor.close_dialog()
             self.editor = InvoicingEditorPopUp(
                 dialog_controller=self.dialog_controller,
                 on_submit=self.on_save_invoice,
                 projects_map=self.active_projects,
+                has_timetracking_data=self.time_tracking_data is not None,
             )
             self.editor.open_dialog()
 
@@ -686,10 +759,11 @@ class InvoicingListView(TView, Column):
         project: Project,
         from_date: Optional[datetime.date],
         to_date: Optional[datetime.date],
+        manual_quantity: Optional[float] = None,
     ):
         """Called when the user clicks on the submit button in the editor"""
         if not invoice:
-            return  # this should never happen
+            return
 
         if not project:
             self.show_snack("Please specify the project")
@@ -707,15 +781,14 @@ class InvoicingListView(TView, Column):
         self.loading_indicator.visible = True
         self.update_self()
         if is_updating:
-            # update the invoice
             result: IntentResult = self.intent.update_invoice(invoice=invoice)
         else:
-            # create a new invoice
             result: IntentResult = self.intent.create_invoice(
                 invoice_date=invoice.date,
                 project=project,
                 from_date=from_date,
                 to_date=to_date,
+                manual_quantity=manual_quantity,
             )
 
         if not result.was_intent_successful:
@@ -824,7 +897,7 @@ class InvoicingListView(TView, Column):
                         color=colors.text_secondary,
                     ),
                     views.TBodyText(
-                        "Create your first invoice from a tracked project.",
+                        "Create your first invoice from time tracking or manual entry.",
                         size=fonts.BODY_2_SIZE,
                         color=colors.text_muted,
                     ),

@@ -1455,5 +1455,49 @@ class EntityDetailScreen(TView, Container):
             ]
         )
 
+    # -- Declarative field binding ---------------------------------------------
+
+    @staticmethod
+    def _resolve_field_value(entity, accessor) -> str:
+        """Resolve *accessor* against *entity* to a Flet-safe string.
+
+        *accessor* is either a callable ``(entity) -> str`` or an attribute
+        name.  For attribute names the value is auto-converted:
+        ``None`` -> ``""``, ``Enum`` -> ``.value``, everything else -> ``str()``.
+        """
+        if callable(accessor):
+            val = accessor(entity)
+            return str(val) if val is not None else ""
+        val = getattr(entity, accessor, None)
+        if val is None:
+            return ""
+        if isinstance(val, Enum):
+            return str(val.value)
+        if isinstance(val, str):
+            return val
+        return str(val)
+
+    def build_field_rows(self, specs: list[tuple]) -> list[ResponsiveRow]:
+        """Create controls and layout rows from a list of field specs.
+
+        Each spec is ``(label, accessor)`` where *accessor* is a string
+        attribute name or a callable ``(entity) -> str``.
+
+        Returns a list of ``ResponsiveRow`` controls ready to be placed in the
+        layout.  Call :meth:`update_field_rows` later to populate them.
+        """
+        self._field_specs: list[tuple[str, typing.Any, TBodyText]] = []
+        rows: list[ResponsiveRow] = []
+        for label, accessor in specs:
+            control = TBodyText(align=utils.TXT_ALIGN_JUSTIFY)
+            self._field_specs.append((label, accessor, control))
+            rows.append(self.get_body_element(label, control))
+        return rows
+
+    def update_field_rows(self, entity) -> None:
+        """Refresh all controls created by :meth:`build_field_rows`."""
+        for _label, accessor, control in self._field_specs:
+            control.value = self._resolve_field_value(entity, accessor)
+
     def will_unmount(self):
         self.mounted = False

@@ -14,7 +14,7 @@ from ..timetracking.data_source import TimeTrackingDataFrameSource
 from ..timetracking.intent import TimeTrackingIntent
 
 from ... import invoicing, mail, os_functions, rendering, timetracking
-from ...model import Invoice, Project, Timesheet, User
+from ...model import Invoice, InvoiceItem, Project, Timesheet, User
 
 from .data_source import InvoicingDataSource
 from ..auth.intent import AuthIntent
@@ -91,84 +91,100 @@ class InvoicingIntent(Intent):
         from_date: date,
         to_date: date,
         render: bool = True,
+        manual_quantity: Optional[float] = None,
     ) -> IntentResult[Invoice]:
-        """Create a new invoice from time tracking data."""
-        logger.info(f"⚙️ Creating invoice for {project.title}...")
+        """Create a new invoice.
+
+        When *manual_quantity* is provided the invoice is built directly from
+        the given quantity and the contract rate, without requiring imported
+        time-tracking data.  Otherwise the existing time-tracking flow is
+        used.
+        """
+        logger.info(f"Creating invoice for {project.title}...")
         user = self._user_data_source.get_user()
         try:
-            # get the time tracking data
-            timetracking_data = self._timetracking_data_source.get_data_frame()
-            # generate timesheet
-            timesheet: Timesheet = timetracking.generate_timesheet(
-                timetracking_data,
-                project,
-                from_date,
-                to_date,
-            )
-
             invoice_number = self._invoicing_data_source.generate_invoice_number(
                 invoice_date
             )
 
-            invoice: Invoice = invoicing.generate_invoice(
-                date=invoice_date,
-                number=invoice_number,
-                timesheets=[
-                    timesheet,
-                ],
-                contract=project.contract,
-                project=project,
-            )
+            if manual_quantity is not None:
+                contract = project.contract
+                item = InvoiceItem(
+                    start_date=from_date,
+                    end_date=to_date,
+                    quantity=manual_quantity,
+                    unit=contract.unit.value if contract.unit else "hour",
+                    unit_price=contract.rate,
+                    description=project.title,
+                    VAT_rate=contract.VAT_rate,
+                )
+                invoice = Invoice(
+                    date=invoice_date,
+                    number=invoice_number,
+                    contract=contract,
+                    project=project,
+                    items=[item],
+                )
+            else:
+                # ── Time-tracking path (existing) ─────────────────
+                timetracking_data = self._timetracking_data_source.get_data_frame()
+                timesheet: Timesheet = timetracking.generate_timesheet(
+                    timetracking_data,
+                    project,
+                    from_date,
+                    to_date,
+                )
+                invoice: Invoice = invoicing.generate_invoice(
+                    date=invoice_date,
+                    number=invoice_number,
+                    timesheets=[timesheet],
+                    contract=project.contract,
+                    project=project,
+                )
+                timesheet.invoice = invoice
 
             if render:
-                # render timesheet
+                if manual_quantity is None and "timesheet" in locals():
+                    try:
+                        rendering.render_timesheet(
+                            user=user,
+                            timesheet=timesheet,
+                            out_dir=Path.home() / ".tuttle" / "Timesheets",
+                            only_final=True,
+                        )
+                    except Exception as ex:
+                        logger.error(
+                            f"Error rendering timesheet for {project.title}: {ex}"
+                        )
+                        logger.exception(ex)
                 try:
-                    logger.info(f"⚙️ Rendering timesheet for {project.title}...")
-                    rendering.render_timesheet(
-                        user=user,
-                        timesheet=timesheet,
-                        out_dir=Path.home() / ".tuttle" / "Timesheets",
-                        only_final=True,
-                    )
-                    logger.info(f"✅ rendered timesheet for {project.title}")
-                except Exception as ex:
-                    logger.error(
-                        f"❌ Error rendering timesheet for {project.title}: {ex}"
-                    )
-                    logger.exception(ex)
-                # render invoice
-                try:
-                    logger.info(f"⚙️ Rendering invoice for {project.title}...")
                     rendering.render_invoice(
                         user=user,
                         invoice=invoice,
                         out_dir=Path.home() / ".tuttle" / "Invoices",
                         only_final=True,
                     )
-                    logger.info(f"✅ rendered invoice for {project.title}")
                 except Exception as ex:
-                    logger.error(f"❌ Error rendering invoice for {project.title}: {ex}")
+                    logger.error(f"Error rendering invoice for {project.title}: {ex}")
                     logger.exception(ex)
 
-            # save invoice and timesheet
-            timesheet.invoice = invoice
-            assert timesheet.invoice is not None
-            assert len(invoice.timesheets) == 1
-            # self._invoicing_data_source.save_timesheet(timesheet)
             self._invoicing_data_source.save_invoice(invoice)
             return IntentResult(
                 was_intent_successful=True,
                 data=invoice,
             )
         except ValueError:
-            error_message = f"No time tracking data found for project '{project.title}' between {from_date} and {to_date}."
+            error_message = (
+                f"No time tracking data found for project "
+                f"'{project.title}' between {from_date} and {to_date}."
+            )
             logger.error(error_message)
             return IntentResult(
                 was_intent_successful=False,
                 error_msg=error_message,
             )
         except Exception as ex:
-            error_message = "Failed to create invoice. "
+            error_message = "Failed to create invoice."
             logger.error(error_message)
             logger.exception(ex)
             return IntentResult(
