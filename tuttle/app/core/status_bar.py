@@ -186,6 +186,9 @@ class StatusBarManager:
         self._right_divider = StatusBarDivider()
         self._right_divider.visible = False
 
+        # Initialized to None; set by build()
+        self.bar: Optional[Container] = None
+
     def build(self) -> Container:
         """Build the status bar container."""
         self.bar = Container(
@@ -281,15 +284,18 @@ class StatusBarManager:
         self._warning_divider.visible = has_warnings
 
         # Update bar color based on urgency
-        if overdue_count > 0:
-            self.bar.bgcolor = colors.bg_statusbar_danger
-        elif has_warnings:
-            self.bar.bgcolor = colors.bg_statusbar_warning
-        else:
-            self.bar.bgcolor = colors.bg_statusbar
+        if self.bar is not None:
+            if overdue_count > 0:
+                self.bar.bgcolor = colors.bg_statusbar_danger
+            elif has_warnings:
+                self.bar.bgcolor = colors.bg_statusbar_warning
+            else:
+                self.bar.bgcolor = colors.bg_statusbar
 
     def try_update(self):
         """Try to push visual updates to the bar."""
+        if self.bar is None:
+            return
         try:
             self.bar.update()
         except Exception:
