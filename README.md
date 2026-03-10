@@ -77,7 +77,7 @@ Calculate your effective income and see how much you can spend without risking y
 
 ### Prerequisites
 
-- Python 3.10 or newer
+- Python 3.12 or newer
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
 ### Installation
