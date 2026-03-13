@@ -1,0 +1,29 @@
+{
+    "country": "Estonia",
+    "country_aliases": ["Eesti"],
+    "year": 2025,
+    "formula_type": "flat_rate",
+    "source": "Tulumaksuseadus (Income Tax Act) 2025",
+    "currency": "EUR",
+
+    "income_tax": {
+        "basic_allowance": 7848,
+        "zones": [
+            {
+                "label": "22%",
+                "up_to": null,
+                "rate": 0.22
+            }
+        ]
+    },
+
+    "solidarity_surcharge": {
+        "rate": 0.0,
+        "comment": "No solidarity surcharge in Estonia"
+    },
+
+    "vat": {
+        "standard_rate": 0.22,
+        "reduced_rate": 0.09
+    }
+}

@@ -407,6 +407,15 @@ class TestProjectSidePanel:
         assert isinstance(controls, list)
 
 
+class _StubContractIntent:
+    """Minimal stand-in for ContractIntent used in tests without a database."""
+
+    def get_default_currency(self):
+        from tuttle.app.core.intent_result import IntentResult
+
+        return IntentResult(was_intent_successful=True, data="EUR")
+
+
 class TestContractSidePanel:
     """Exercise ContractSidePanel construction and content building."""
 
@@ -417,7 +426,7 @@ class TestContractSidePanel:
             on_close=_noop,
             on_save=_noop,
             on_delete=_noop,
-            intent=None,
+            intent=_StubContractIntent(),
             client_storage=None,
             on_edit_requested=_noop,
         )

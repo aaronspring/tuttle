@@ -1,0 +1,54 @@
+{
+    "country": "Spain",
+    "country_aliases": ["España", "Espana"],
+    "year": 2025,
+    "formula_type": "marginal_brackets",
+    "source": "IRPF 2025 — Ley del IRPF (state + general autonomous community rates)",
+    "currency": "EUR",
+
+    "income_tax": {
+        "basic_allowance": 5550,
+        "zones": [
+            {
+                "label": "19%",
+                "up_to": 12450,
+                "rate": 0.19
+            },
+            {
+                "label": "24%",
+                "up_to": 20200,
+                "rate": 0.24
+            },
+            {
+                "label": "30%",
+                "up_to": 35200,
+                "rate": 0.30
+            },
+            {
+                "label": "37%",
+                "up_to": 60000,
+                "rate": 0.37
+            },
+            {
+                "label": "45%",
+                "up_to": 300000,
+                "rate": 0.45
+            },
+            {
+                "label": "47%",
+                "up_to": null,
+                "rate": 0.47
+            }
+        ]
+    },
+
+    "solidarity_surcharge": {
+        "rate": 0.0,
+        "comment": "No solidarity surcharge in Spain"
+    },
+
+    "vat": {
+        "standard_rate": 0.21,
+        "reduced_rate": 0.10
+    }
+}

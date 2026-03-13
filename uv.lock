@@ -544,7 +544,7 @@ name = "cryptography"
 version = "46.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/60/04/ee2a9e8542e4fa2773b81771ff8349ff19cdd56b7258a0cc442639052edb/cryptography-46.0.5.tar.gz", hash = "sha256:abace499247268e3757271b2f1e244b36b06f8515cf27c4d49468fc9eb16e93d", size = 750064, upload-time = "2026-02-10T19:18:38.255Z" }
 wheels = [
@@ -705,6 +705,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/92/86/cd5c7c11155a8a5345065c5eafe086bb43ee129773118b9ef8951551bb51/flet-0.81.0.tar.gz", hash = "sha256:406466e378c8e863e6af1247f308837dfc90f4e1a40d476e47ac3881ff4b76e7", size = 444034, upload-time = "2026-02-24T18:16:31.549Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/73/db/417852ec9a2afe6bbd7fd1c797707fa3403b4880a75e132c44e272b9e519/flet-0.81.0-py3-none-any.whl", hash = "sha256:2bc22d9ddf65b30a836fff43455968a1531f0673a41c1c89eec494816ed68676", size = 540464, upload-time = "2026-02-24T18:16:30.214Z" },
+]
+
+[[package]]
+name = "flet-charts"
+version = "0.81.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flet" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/40/a9515782d5422372fe2078edd01c535e230b863dff362314290854a278c6/flet_charts-0.81.0.tar.gz", hash = "sha256:28711bd04fba6322462d9043cb89b092addb79da2cde7f01eafc94ea66a27370", size = 51685, upload-time = "2026-02-24T18:17:58.47Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/b4/11a1c54190c03a6b2c09227ff8a071c65b2b9a001ffd03d12eaea1fea76f/flet_charts-0.81.0-py3-none-any.whl", hash = "sha256:b4952eed8812b16e971a1a8e1962090df88348d13de1502adb07fa37d14fe7cc", size = 74482, upload-time = "2026-02-24T18:17:59.44Z" },
 ]
 
 [[package]]
@@ -2734,8 +2746,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "jeepney", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -2975,6 +2987,7 @@ dependencies = [
     { name = "babel" },
     { name = "faker" },
     { name = "flet" },
+    { name = "flet-charts" },
     { name = "icloudpy" },
     { name = "ics" },
     { name = "loguru" },
@@ -3014,6 +3027,7 @@ requires-dist = [
     { name = "babel" },
     { name = "faker" },
     { name = "flet", specifier = ">=0.81.0,<0.82.0" },
+    { name = "flet-charts", specifier = ">=0.81.0" },
     { name = "icloudpy" },
     { name = "ics" },
     { name = "loguru" },

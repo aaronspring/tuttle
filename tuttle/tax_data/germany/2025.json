@@ -1,0 +1,62 @@
+{
+    "country": "Germany",
+    "country_aliases": ["Deutschland"],
+    "year": 2025,
+    "formula_type": "german_progressive",
+    "source": "§32a EStG 2025",
+    "currency": "EUR",
+
+    "income_tax": {
+        "basic_allowance": 12084,
+        "zones": [
+            {
+                "label": "Tax-free zone",
+                "up_to": 12084,
+                "type": "zero"
+            },
+            {
+                "label": "Zone 2 (14%–24%)",
+                "up_to": 17430,
+                "type": "quadratic",
+                "reference_offset": 12084,
+                "divisor": 10000,
+                "a": 932.30,
+                "b": 1400
+            },
+            {
+                "label": "Zone 3 (24%–42%)",
+                "up_to": 68430,
+                "type": "quadratic",
+                "reference_offset": 17430,
+                "divisor": 10000,
+                "a": 176.63,
+                "b": 2397,
+                "c": 1015.42
+            },
+            {
+                "label": "Zone 4 (42%)",
+                "up_to": 277825,
+                "type": "linear",
+                "rate": 0.42,
+                "offset": -10733.49
+            },
+            {
+                "label": "Zone 5 (45%)",
+                "up_to": null,
+                "type": "linear",
+                "rate": 0.45,
+                "offset": -19082.74
+            }
+        ]
+    },
+
+    "solidarity_surcharge": {
+        "rate": 0.055,
+        "comment": "5.5% of income tax"
+    },
+
+    "vat": {
+        "standard_rate": 0.19,
+        "reduced_rate": 0.07
+    }
+}

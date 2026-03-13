@@ -37,6 +37,7 @@ from ..core.abstractions import DialogHandler, TView, TViewParams
 from ..core.status_bar import StatusBarManager
 from ..dashboard.view import DashboardView
 from ..invoicing.view import InvoicingListView
+from ..tax.view import TaxView
 from ..projects.view import ProjectsListView
 from ..res import colors, dimens, fonts, res_utils, theme
 from ..timetracking.view import TimeTrackingView
@@ -200,12 +201,13 @@ class SecondaryMenuHandler:
 
 
 class InsightsMenuHandler:
-    """Manages home's insights-menu items (dashboard, KPIs)."""
+    """Manages home's insights-menu items (dashboard, KPIs, tax)."""
 
     def __init__(self, params: TViewParams):
         super().__init__()
         self.menu_title = "Insights"
         self.dashboard_view = DashboardView(params)
+        self.tax_view = TaxView(params)
         self.items = [
             views.NavigationMenuItem(
                 index=0,
@@ -213,6 +215,13 @@ class InsightsMenuHandler:
                 icon=utils.TuttleComponentIcons.dashboard_icon,
                 selected_icon=utils.TuttleComponentIcons.dashboard_selected_icon,
                 destination=self.dashboard_view,
+            ),
+            views.NavigationMenuItem(
+                index=1,
+                label="Tax & Reserves",
+                icon=utils.TuttleComponentIcons.tax_icon,
+                selected_icon=utils.TuttleComponentIcons.tax_selected_icon,
+                destination=self.tax_view,
             ),
         ]
 

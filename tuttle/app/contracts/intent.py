@@ -1,11 +1,10 @@
 from ..clients.intent import ClientsIntent
 from ..contacts.intent import ContactsIntent
-from ..core.abstractions import ClientStorage, CrudIntent
+from ..core.abstractions import CrudIntent
 from ..core.intent_result import IntentResult
-from ..preferences.intent import PreferencesIntent
-from ..preferences.model import PreferencesStorageKeys
 
-from ...model import Client, Contract
+from ...model import Client, Contract, User
+from ...tax import get_tax_system
 
 
 class ContractsIntent(CrudIntent):
@@ -33,13 +32,15 @@ class ContractsIntent(CrudIntent):
     def save_client(self, client: Client) -> IntentResult:
         return self._clients_intent.save_client(client=client)
 
-    def get_preferred_currency_intent(
-        self, client_storage: ClientStorage
-    ) -> IntentResult:
-        _preferences_intent = PreferencesIntent(client_storage=client_storage)
-        return _preferences_intent.get_preference_by_key(
-            preference_key=PreferencesStorageKeys.default_currency_key
-        )
+    def get_default_currency(self) -> IntentResult:
+        """Derive default contract currency from the user's operating country."""
+        try:
+            users = self.query(User)
+            country = users[0].operating_country if users else "Germany"
+            ts = get_tax_system(country)
+            return IntentResult(was_intent_successful=True, data=ts.currency)
+        except Exception as e:
+            return IntentResult(was_intent_successful=True, data="EUR")
 
     # -- Contract-specific logic -----------------------------------------------
 

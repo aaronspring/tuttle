@@ -1,0 +1,62 @@
+{
+    "country": "Germany",
+    "country_aliases": ["Deutschland"],
+    "year": 2024,
+    "formula_type": "german_progressive",
+    "source": "§32a EStG 2024",
+    "currency": "EUR",
+
+    "income_tax": {
+        "basic_allowance": 11604,
+        "zones": [
+            {
+                "label": "Tax-free zone",
+                "up_to": 11604,
+                "type": "zero"
+            },
+            {
+                "label": "Zone 2 (14%–24%)",
+                "up_to": 17005,
+                "type": "quadratic",
+                "reference_offset": 11604,
+                "divisor": 10000,
+                "a": 922.98,
+                "b": 1400
+            },
+            {
+                "label": "Zone 3 (24%–42%)",
+                "up_to": 66760,
+                "type": "quadratic",
+                "reference_offset": 17005,
+                "divisor": 10000,
+                "a": 181.19,
+                "b": 2397,
+                "c": 991.21
+            },
+            {
+                "label": "Zone 4 (42%)",
+                "up_to": 277825,
+                "type": "linear",
+                "rate": 0.42,
+                "offset": -10636.31
+            },
+            {
+                "label": "Zone 5 (45%)",
+                "up_to": null,
+                "type": "linear",
+                "rate": 0.45,
+                "offset": -18971.56
+            }
+        ]
+    },
+
+    "solidarity_surcharge": {
+        "rate": 0.055,
+        "comment": "5.5% of income tax"
+    },
+
+    "vat": {
+        "standard_rate": 0.19,
+        "reduced_rate": 0.07
+    }
+}

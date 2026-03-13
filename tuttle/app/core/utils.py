@@ -25,6 +25,7 @@ from flet import (
 )
 
 import pycountry
+from babel.numbers import format_currency as _babel_format_currency
 
 from ...dev import deprecated
 
@@ -139,6 +140,8 @@ class TuttleComponentIcons(Enum):
     timetracking_selected_icon = Icons.TIMER_ROUNDED
     invoicing_icon = Icons.RECEIPT_OUTLINED
     invoicing_selected_icon = Icons.RECEIPT_ROUNDED
+    tax_icon = Icons.CALCULATE_OUTLINED
+    tax_selected_icon = Icons.CALCULATE_ROUNDED
     datatable_icon = Icons.TABLE_CHART
     datatable_selected_icon = Icons.TABLE_CHART_ROUNDED
     profile_icon = Icons.PERSON_OUTLINE
@@ -163,6 +166,19 @@ def get_currencies() -> List[Tuple[str, str, str]]:
     # sort alphabetically by abbreviation
     currencies.sort(key=lambda tup: tup[1])
     return currencies
+
+
+def fmt_currency(value, currency: str = "EUR", locale: str = "en_US") -> str:
+    """Format a numeric value as a currency string using babel.
+
+    Args:
+        value: Decimal, float, or int to format. None returns "---".
+        currency: ISO 4217 code (e.g. "EUR", "USD", "SEK").
+        locale: Babel locale for number formatting.
+    """
+    if value is None:
+        return "—"
+    return _babel_format_currency(float(value), currency, locale=locale)
 
 
 def toBase64(

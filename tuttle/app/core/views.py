@@ -785,7 +785,7 @@ class SectionLabel(Container):
     def __init__(self, title: str):
         super().__init__(
             padding=Padding.only(
-                left=dimens.SPACE_STD, top=dimens.SPACE_LG, bottom=dimens.SPACE_XS
+                left=dimens.SPACE_STD, top=dimens.SPACE_MD, bottom=dimens.SPACE_XXS
             ),
             content=Text(
                 title.upper(),
@@ -826,9 +826,9 @@ class SidebarNavItem(Container):
             bgcolor=bg,
             border_radius=dimens.RADIUS_LG,
             padding=Padding.symmetric(
-                horizontal=dimens.SPACE_SM + 2, vertical=dimens.SPACE_XS + 2
+                horizontal=dimens.SPACE_SM, vertical=dimens.SPACE_XS
             ),
-            margin=Margin.symmetric(horizontal=dimens.SPACE_XS, vertical=1),
+            margin=Margin.symmetric(horizontal=dimens.SPACE_XXS, vertical=1),
             on_click=on_click,
             on_hover=self._on_hover,
             content=Row(
@@ -841,7 +841,7 @@ class SidebarNavItem(Container):
                         weight=fonts.BOLD_FONT if selected else None,
                     ),
                 ],
-                spacing=dimens.SPACE_SM,
+                spacing=dimens.SPACE_XS,
                 vertical_alignment=utils.CENTER_ALIGNMENT,
             ),
         )

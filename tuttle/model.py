@@ -131,6 +131,10 @@ class User(SQLModel, table=True):
         back_populates="users",
         sa_relationship_kwargs={"lazy": "subquery"},
     )
+    operating_country: str = Field(
+        default="Germany",
+        description="Country whose tax system and currency the freelancer operates under.",
+    )
     VAT_number: Optional[str] = Field(
         default=None,
         description="Value Added Tax number of the user, legally required for invoices.",

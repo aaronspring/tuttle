@@ -26,6 +26,7 @@ class AuthIntent(Intent):
         city: str,
         country: str,
         website: str,
+        operating_country: str = "Germany",
     ) -> IntentResult[Union[Type[User], None]]:
         """
         Creates a user with the given details.
@@ -50,9 +51,11 @@ class AuthIntent(Intent):
         city : str
             City of the user
         country : str
-            Country of the user
+            Country of the residence address
         website : str
             "URL of the user's website."
+        operating_country : str
+            Country whose tax system the freelancer operates under.
 
         Returns
         -------
@@ -72,6 +75,7 @@ class AuthIntent(Intent):
             email=email,
             phone_number=phone,
             address=address,
+            operating_country=operating_country,
             VAT_number="",
             website=website,
         )
@@ -123,6 +127,7 @@ class AuthIntent(Intent):
         city: str,
         country: str,
         website: str,
+        operating_country: Optional[str] = None,
     ) -> IntentResult[Optional[User]]:
         """
         Updates the user with the given details.
@@ -149,9 +154,11 @@ class AuthIntent(Intent):
         city : str
             City of the user
         country : str
-            Country of the user
+            Country of the residence address
         website : str
             "URL of the user's website."
+        operating_country : str, optional
+            Country whose tax system the freelancer operates under.
         Returns
         -------
         IntentResult
@@ -171,6 +178,8 @@ class AuthIntent(Intent):
         user.address = address
         user.website = website
         user.profile_photo_path = user.profile_photo_path
+        if operating_country is not None:
+            user.operating_country = operating_country
         result = self._data_source.save_user(user)
 
         if not result.was_intent_successful:

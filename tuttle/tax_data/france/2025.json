@@ -1,0 +1,49 @@
+{
+    "country": "France",
+    "country_aliases": [],
+    "year": 2025,
+    "formula_type": "marginal_brackets",
+    "source": "Barème progressif 2025 (revenus 2024) — Article 197 CGI",
+    "currency": "EUR",
+
+    "income_tax": {
+        "basic_allowance": 0,
+        "zones": [
+            {
+                "label": "0%",
+                "up_to": 11497,
+                "rate": 0.0
+            },
+            {
+                "label": "11%",
+                "up_to": 29315,
+                "rate": 0.11
+            },
+            {
+                "label": "30%",
+                "up_to": 83823,
+                "rate": 0.30
+            },
+            {
+                "label": "41%",
+                "up_to": 180294,
+                "rate": 0.41
+            },
+            {
+                "label": "45%",
+                "up_to": null,
+                "rate": 0.45
+            }
+        ]
+    },
+
+    "solidarity_surcharge": {
+        "rate": 0.0,
+        "comment": "No separate solidarity surcharge; social contributions (CSG/CRDS) are handled separately"
+    },
+
+    "vat": {
+        "standard_rate": 0.20,
+        "reduced_rate": 0.055
+    }
+}

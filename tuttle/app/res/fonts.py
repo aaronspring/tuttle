@@ -18,19 +18,19 @@ APP_FONTS = {
 
 
 # ── Font sizes ───────────────────────────────────────────────
-HEADLINE_0_SIZE = 32  # hero / splash titles
-HEADLING_1_SIZE = 28  # page titles
-HEADLINE_2_SIZE = 22  # section titles
-HEADLINE_3_SIZE = 18  # sub-section titles
-HEADLINE_4_SIZE = 15  # card titles, toolbar headings
-BODY_1_SIZE = 14  # primary body text (up from 13)
-BODY_2_SIZE = 13  # secondary body text (up from 12)
-SUBTITLE_1_SIZE = 15  # emphasized labels
-SUBTITLE_2_SIZE = 13  # secondary labels
-BUTTON_SIZE = 13  # button text
+HEADLINE_0_SIZE = 30  # hero / splash titles
+HEADLING_1_SIZE = 26  # page titles
+HEADLINE_2_SIZE = 20  # section titles
+HEADLINE_3_SIZE = 17  # sub-section titles
+HEADLINE_4_SIZE = 14  # card titles, toolbar headings
+BODY_1_SIZE = 13  # primary body text
+BODY_2_SIZE = 12  # secondary body text
+SUBTITLE_1_SIZE = 14  # emphasized labels
+SUBTITLE_2_SIZE = 12  # secondary labels
+BUTTON_SIZE = 12  # button text
 OVERLINE_SIZE = 11  # overline / section headers
 CAPTION_SIZE = 11  # captions, helper text
-STATUS_BAR_SIZE = 12  # status bar text
+STATUS_BAR_SIZE = 11  # status bar text
 
 # ── Font weights ─────────────────────────────────────────────
 BOLD_FONT = FontWeight.W_600  # semi-bold for crisper hierarchy

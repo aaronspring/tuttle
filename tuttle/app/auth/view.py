@@ -23,6 +23,7 @@ from ..core.intent_result import IntentResult
 from ..res import dimens, fonts, image_paths, res_utils, colors, theme
 from ..preferences.intent import PreferencesIntent
 from ...model import User, BankAccount
+from ...tax import supported_countries
 
 from .intent import AuthIntent
 
@@ -159,6 +160,7 @@ class UserDataForm(Column):
         address_number = self.street_number_field.value
         address_city = self.city_field.value
         address_country = self.country_field.value
+        operating_country = self.operating_country_field.value or ""
         website = self.website_field.value
 
         # validate the form data
@@ -181,12 +183,14 @@ class UserDataForm(Column):
             or utils.is_empty_str(address_country)
             or utils.is_empty_str(address_city)
         ):
-
             missing_required_data_err = "Please provide your full address"
             self.toggle_form_err(missing_required_data_err)
 
+        elif utils.is_empty_str(operating_country):
+            missing_required_data_err = "Please select your operating country"
+            self.toggle_form_err(missing_required_data_err)
+
         if not missing_required_data_err:
-            # save user
             result: IntentResult = self.on_form_submit(
                 title=subtitle,
                 name=name,
@@ -198,6 +202,7 @@ class UserDataForm(Column):
                 city=address_city,
                 country=address_country,
                 website=website,
+                operating_country=operating_country,
             )
             if not result.was_intent_successful:
                 self.toggle_form_err(result.error_msg)
@@ -260,6 +265,11 @@ class UserDataForm(Column):
         self.country_field = views.TTextField(
             label="Country",
         )
+        self.operating_country_field = views.TDropDown(
+            label="Operating Country (tax jurisdiction)",
+            items=supported_countries(),
+            hint="Select the country you freelance under",
+        )
         self.form_err_control = views.TErrorText("")
         self.submit_btn = views.TPrimaryButton(
             on_click=self.on_submit_btn_clicked,
@@ -287,6 +297,7 @@ class UserDataForm(Column):
                 ],
             ),
             self.country_field,
+            self.operating_country_field,
             self.form_err_control,
             self.submit_btn,
         ]
@@ -303,6 +314,8 @@ class UserDataForm(Column):
         self.street_number_field.value = user.address.number
         self.city_field.value = user.address.city
         self.country_field.value = user.address.country
+        if user.operating_country:
+            self.operating_country_field.update_value(user.operating_country)
         self.website_field.value = user.website
         self.update()
 
@@ -343,7 +356,7 @@ class SplashScreen(TView, Column):
             on_submit_success=lambda _: self.navigate_to_route(
                 res_utils.HOME_SCREEN_ROUTE
             ),
-            on_form_submit=lambda title, name, email, phone, street, street_num, postal_code, city, country, website: self.intent.create_user(
+            on_form_submit=lambda title, name, email, phone, street, street_num, postal_code, city, country, website, operating_country="Germany": self.intent.create_user(
                 title=title,
                 name=name,
                 email=email,
@@ -354,6 +367,7 @@ class SplashScreen(TView, Column):
                 city=city,
                 country=country,
                 website=website,
+                operating_country=operating_country,
             ),
             submit_btn_label="Save Profile",
         )
@@ -588,7 +602,7 @@ class UserInfoContent(TView, Column):
     def build(self):
         """Builds the view"""
         self.user_info_form = UserDataForm(
-            on_form_submit=lambda title, name, email, phone, street, street_num, postal_code, city, country, website: self.intent.update_user_with_info(
+            on_form_submit=lambda title, name, email, phone, street, street_num, postal_code, city, country, website, operating_country=None: self.intent.update_user_with_info(
                 title=title,
                 name=name,
                 email=email,
@@ -599,6 +613,7 @@ class UserInfoContent(TView, Column):
                 city=city,
                 country=country,
                 website=website,
+                operating_country=operating_country,
                 user=self.user_profile,
             ),
             on_submit_success=self.on_profile_updated,

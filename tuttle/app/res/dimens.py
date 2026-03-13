@@ -11,16 +11,16 @@ MIN_WINDOW_HEIGHT = 600
 SPACE_XXS = 4
 SPACE_XS = 8
 SPACE_SM = 12
-SPACE_STD = 16
-SPACE_MD = 20
-SPACE_LG = 24
-SPACE_XL = 32
+SPACE_STD = 14
+SPACE_MD = 18
+SPACE_LG = 22
+SPACE_XL = 30
 SPACE_XXL = 48
 
 # ── Layout chrome ────────────────────────────────────────────
-TOOLBAR_HEIGHT = 48
-FOOTER_HEIGHT = 26  # status bar — slightly taller for interactive widgets
-SIDEBAR_WIDTH = 240  # wider for data tree
+TOOLBAR_HEIGHT = 44
+FOOTER_HEIGHT = 24  # compact status bar height
+SIDEBAR_WIDTH = 224  # slightly narrower for denser shell
 SIDEBAR_COLLAPSED_WIDTH = 48
 ACTIVITY_BAR_WIDTH = 48
 TITLEBAR_HEIGHT = 38
@@ -34,18 +34,18 @@ RADIUS_2XL = 16
 RADIUS_PILL = 999
 
 # ── Icon sizes ───────────────────────────────────────────────
-ICON_SIZE = 18
+ICON_SIZE = 17
 SM_ICON_SIZE = 14
-MD_ICON_SIZE = 20
-LG_ICON_SIZE = 28
+MD_ICON_SIZE = 18
+LG_ICON_SIZE = 26
 
 # ── Clickable targets ───────────────────────────────────────
 CLICKABLE_PILL_HEIGHT = 28
-CLICKABLE_STD_HEIGHT = 36
+CLICKABLE_STD_HEIGHT = 34
 
 # ── Cards ────────────────────────────────────────────────────
 CARD_MAX_EXTENT = 420
-CARD_SPACING = 20  # more breathing room
+CARD_SPACING = 18
 CARD_BORDER_WIDTH = 0  # borderless cards — rely on bg contrast
 
 # ── Status bar items ─────────────────────────────────────────

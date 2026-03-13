@@ -372,12 +372,11 @@ class ContractSidePanel(views.EntitySidePanel):
             keyboard_type=utils.KEYBOARD_NUMBER,
         )
 
-        # Currency dropdown
+        # Currency dropdown — default derived from operating country
         preferred_currency = None
-        if self._client_storage:
-            r = self.intent.get_preferred_currency_intent(self._client_storage)
-            if r.was_intent_successful:
-                preferred_currency = r.data
+        r = self.intent.get_default_currency()
+        if r.was_intent_successful:
+            preferred_currency = r.data
         cur_value = entity.currency if entity else preferred_currency
         self._currency_field = views.TDropDown(
             label="Currency",

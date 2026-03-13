@@ -55,19 +55,7 @@ class PreferencesScreen(TView, Row):
         self.on_theme_changed_callback = on_theme_changed_callback
         self.on_reset_app_callback = on_reset_app_callback
         self.preferences: Optional[Preferences] = None
-        self.currencies = []
         self.pop_up_handler = None
-
-    def set_available_currencies(self):
-        self.currencies = [
-            abbreviation for (name, abbreviation, symbol) in utils.get_currencies()
-        ]
-        self.currencies_control.update_dropdown_items(self.currencies)
-
-    def on_currency_selected(self, e):
-        if not self.preferences:
-            return
-        self.preferences.default_currency = e.control.value
 
     def on_cloud_account_id_changed(self, e):
         if not self.preferences:
@@ -85,7 +73,6 @@ class PreferencesScreen(TView, Row):
         self.theme_control.update_value(self.preferences.theme_mode)
         self.cloud_provider_control.update_value(self.preferences.cloud_acc_provider)
         self.cloud_account_id_control.value = self.preferences.cloud_acc_id
-        self.currencies_control.update_value(self.preferences.default_currency)
         self.languages_control.update_value(self.preferences.language)
 
     def on_theme_changed(self, e):
@@ -192,11 +179,6 @@ class PreferencesScreen(TView, Row):
             hint="Your cloud account name",
             on_change=self.on_cloud_account_id_changed,
         )
-        self.currencies_control = views.TDropDown(
-            label="Default Currency",
-            on_change=self.on_currency_selected,
-            items=self.currencies,
-        )
         self.languages_control = views.TDropDown(
             label="Language",
             on_change=self.on_language_selected,
@@ -252,7 +234,6 @@ class PreferencesScreen(TView, Row):
                             self._make_tab_content(
                                 [
                                     self.languages_control,
-                                    self.currencies_control,
                                 ]
                             ),
                         ],
@@ -293,7 +274,6 @@ class PreferencesScreen(TView, Row):
         self.mounted = True
         self.loading_indicator.visible = True
         self.update_self()
-        self.set_available_currencies()
         result: IntentResult = self.intent.get_preferences()
         if result.was_intent_successful:
             self.preferences = result.data
