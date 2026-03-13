@@ -40,7 +40,7 @@ from pandas import DataFrame
 from ..res import colors, dimens, fonts, res_utils
 
 from ...model import Invoice, Project, User
-from ...os_functions import render_pdf_pages
+from ...os_functions import preview_pdf, render_pdf_pages
 
 from .intent import InvoicingIntent
 
@@ -497,7 +497,8 @@ class InvoicingListView(TView, Column):
         self.contacts = {}
         self.active_projects = {}
         self.editor = None
-        self._viewed_invoice_id: Optional[int] = None
+        self._selected_invoice_id: Optional[int] = None
+        self._tile_map: dict[int, "InvoiceTile"] = {}
         object.__setattr__(self, "time_tracking_data", None)
         object.__setattr__(self, "user", None)
         self.active_filter: str = self._FILTER_ALL
@@ -677,6 +678,7 @@ class InvoicingListView(TView, Column):
         filtered.sort(key=lambda i: i.date, reverse=True)
 
         self.invoices_list_control.controls.clear()
+        self._tile_map.clear()
 
         if not filtered:
             self.no_invoices_control.visible = True
@@ -702,8 +704,10 @@ class InvoicingListView(TView, Column):
                     toggle_paid_status=self.toggle_paid_status,
                     toggle_cancelled_status=self.toggle_cancelled_status,
                     toggle_sent_status=self.toggle_sent_status,
-                    is_selected=invoice.id == self._viewed_invoice_id,
+                    on_select=self._on_invoice_selected,
+                    is_selected=invoice.id == self._selected_invoice_id,
                 )
+                self._tile_map[invoice.id] = tile
             except Exception as ex:
                 logger.error(f"Error while refreshing invoice: {ex}")
                 logger.exception(ex)
@@ -722,7 +726,7 @@ class InvoicingListView(TView, Column):
         if not result.was_intent_successful:
             self.show_snack(result.error_msg, is_error=True)
             return
-        self._viewed_invoice_id = invoice.id
+        self._selected_invoice_id = invoice.id
         self.pdf_panel.show_pdf(result.data, title=f"Invoice {invoice.number}")
         self.refresh_invoices()
         self.update_self()
@@ -733,7 +737,7 @@ class InvoicingListView(TView, Column):
         if not result.was_intent_successful:
             self.show_snack(result.error_msg, is_error=True)
             return
-        self._viewed_invoice_id = invoice.id
+        self._selected_invoice_id = invoice.id
         self.pdf_panel.show_pdf(result.data, title="Timesheet")
         self.refresh_invoices()
         self.update_self()
@@ -856,7 +860,25 @@ class InvoicingListView(TView, Column):
 
     def did_mount(self):
         """Called when the view is mounted"""
+        self.page.on_keyboard_event = self._on_keyboard_event
         self.initialize_data()
+
+    def _on_keyboard_event(self, e):
+        """Open Quick Look / system preview when spacebar is pressed with an invoice selected."""
+        if e.key != " " or self._selected_invoice_id is None:
+            return
+        invoice = self.invoices_to_display.get(self._selected_invoice_id)
+        if not invoice:
+            return
+        result = self.intent.view_invoice(invoice)
+        if result.was_intent_successful:
+            try:
+                preview_pdf(str(result.data))
+            except Exception as ex:
+                logger.error(f"Quick Look failed: {ex}")
+                self.show_snack("Could not preview invoice.", is_error=True)
+        else:
+            self.show_snack(result.error_msg, is_error=True)
 
     def initialize_data(self):
         """initialize the data for the view"""
@@ -885,10 +907,24 @@ class InvoicingListView(TView, Column):
 
     def _close_pdf_panel(self):
         """Hide the PDF side panel and restore full-width list."""
-        self._viewed_invoice_id = None
         self.pdf_panel.close()
         self.refresh_invoices()
         self.update_self()
+
+    def _on_invoice_selected(self, invoice: Invoice):
+        """Handle click selection of an invoice tile."""
+        old_id = self._selected_invoice_id
+        if old_id == invoice.id:
+            return
+        self._selected_invoice_id = invoice.id
+
+        # Only touch the two affected tiles instead of rebuilding the list.
+        old_tile = self._tile_map.get(old_id)
+        if old_tile is not None:
+            old_tile.set_selected(False)
+        new_tile = self._tile_map.get(invoice.id)
+        if new_tile is not None:
+            new_tile.set_selected(True)
 
     def build(self):
         """build the view"""
@@ -990,6 +1026,8 @@ class InvoicingListView(TView, Column):
 
     def will_unmount(self):
         self.mounted = False
+        if self.page:
+            self.page.on_keyboard_event = None
         if self.editor:
             self.editor.dimiss_open_dialogs()
 
@@ -1009,10 +1047,12 @@ class InvoiceTile(Container):
         toggle_paid_status,
         toggle_sent_status,
         toggle_cancelled_status,
+        on_select,
         is_selected: bool = False,
     ):
         self.invoice = invoice
         self._is_selected = is_selected
+        self._on_select = on_select
 
         _project_title = invoice.project.title if invoice.project else ""
         _currency = invoice.contract.currency if invoice.contract else ""
@@ -1168,6 +1208,7 @@ class InvoiceTile(Container):
             border_radius=dimens.RADIUS_LG,
             padding=Padding.all(0),
             clip_behavior=ClipBehavior.HARD_EDGE,
+            on_click=lambda e: self._on_select(invoice),
             on_hover=self._on_hover,
             content=Row(
                 spacing=0,
@@ -1251,6 +1292,17 @@ class InvoiceTile(Container):
                 ],
             ),
         )
+
+    def set_selected(self, selected: bool):
+        """Update the visual selection state without rebuilding the tile."""
+        self._is_selected = selected
+        if selected:
+            self.bgcolor = colors.accent_muted
+            self.border = Border.all(2, colors.accent)
+        else:
+            self.bgcolor = colors.bg_surface
+            self.border = Border.all(dimens.CARD_BORDER_WIDTH, colors.border)
+        self.update()
 
     def _on_hover(self, e):
         if self._is_selected:

@@ -19,23 +19,57 @@ def open_application(app_name):
         subprocess.call(["xdg-open", app_name])
 
 
+_ql_process: Optional[subprocess.Popen] = None
+
+
 def preview_pdf(file_path):
-    """Preview a PDF file."""
-    try:
-        if not Path(file_path).exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-        if platform.system() == "Darwin":
-            subprocess.check_call(["qlmanage", "-p", file_path])
-        elif platform.system() == "Windows":
-            os.startfile(file_path)
-        elif platform.system() == "Linux":
-            subprocess.check_call(["xdg-open", file_path])
-        else:
-            raise RuntimeError("Sorry, your platform is not supported.")
-    except subprocess.CalledProcessError as err:
-        raise RuntimeError(
-            f"Error occurred while opening the PDF file. Return code: {err.returncode}. Error: {err.output}"
+    """Preview a PDF file using the system Quick Look (macOS) or default viewer.
+
+    Non-blocking.  On macOS only one Quick Look window is kept alive at a time;
+    repeated calls replace the previous preview.
+    """
+    global _ql_process
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    system = platform.system()
+    if system == "Darwin":
+        # Tear down a previous Quick Look window so we never stack them up.
+        if _ql_process is not None and _ql_process.poll() is None:
+            _ql_process.terminate()
+            try:
+                _ql_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                _ql_process.kill()
+
+        _ql_process = subprocess.Popen(
+            ["qlmanage", "-p", str(path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
+
+        # Best-effort: bring the Quick Look window to the foreground.
+        subprocess.Popen(
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to set frontmost of '
+                'every process whose name is "qlmanage" to true',
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    elif system == "Windows":
+        os.startfile(str(path))
+    elif system == "Linux":
+        subprocess.Popen(
+            ["xdg-open", str(path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    else:
+        raise RuntimeError("Sorry, your platform is not supported.")
 
 
 def render_pdf_pages(file_path, dpi: int = 150) -> List[str]:
