@@ -223,12 +223,7 @@ class DashboardView(TView, Column):
                 content=Column(
                     spacing=dimens.SPACE_XS,
                     controls=[
-                        Text(
-                            "Dashboard",
-                            size=fonts.HEADLING_1_SIZE,
-                            color=colors.text_primary,
-                            weight=fonts.BOLDER_FONT,
-                        ),
+                        views.THeading("Dashboard", size=fonts.HEADLINE_3_SIZE),
                         Row(
                             alignment=MainAxisAlignment.CENTER,
                             controls=[self._spinner],

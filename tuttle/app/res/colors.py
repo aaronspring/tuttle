@@ -10,9 +10,11 @@ bg_sidebar = "#2C2C2E"  # sidebar panel (Apple secondarySystemBackground)
 bg_surface = "#3A3A3C"  # cards, panels (Apple systemGray4)
 bg_surface_hovered = "#48484A"  # hovered cards (Apple systemGray3)
 bg_titlebar = "#1C1C1E"  # title bar (seamless with bg)
-bg_statusbar = "#007ACC"  # status bar accent
-bg_statusbar_warning = "#CC7700"  # status bar with warnings
-bg_statusbar_danger = "#CC3333"  # status bar with overdue items
+bg_statusbar = "#2C2C2E"  # status bar (matches sidebar for native feel)
+bg_statusbar_warning = "#3A3A3C"  # status bar with warnings (items use warning color)
+bg_statusbar_danger = (
+    "#3A3A3C"  # status bar with overdue items (items use danger color)
+)
 bg_toolbar = "#1C1C1E"  # toolbar merges into background
 bg_input = "#3A3A3C"  # text field fill
 

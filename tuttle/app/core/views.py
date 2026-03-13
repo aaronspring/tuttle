@@ -1450,8 +1450,7 @@ class CrudListView(TView, Column):
             controls=[
                 THeading(
                     f"My {self.entity_name_plural.title()}",
-                    size=fonts.HEADLINE_2_SIZE,
-                    color=colors.text_secondary,
+                    size=fonts.HEADLINE_3_SIZE,
                 ),
             ]
             + ([sort_control] if sort_control else []),

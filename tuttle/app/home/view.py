@@ -4,20 +4,16 @@ import webbrowser
 from dataclasses import dataclass
 
 from flet import (
-    Alignment,
     Border,
     BorderSide,
     Column,
     Container,
     ElevatedButton,
     Icon,
-    IconButton,
     Icons,
     Margin,
     NavigationRailDestination,
     Padding,
-    PopupMenuButton,
-    PopupMenuItem,
     ResponsiveRow,
     Row,
     Text,
@@ -43,87 +39,6 @@ from ..res import colors, dimens, fonts, res_utils, theme
 from ..timetracking.view import TimeTrackingView
 
 from ..preferences.intent import PreferencesIntent
-
-
-def get_toolbar(
-    on_click_new_btn: Callable,
-    on_click_profile_btn: Callable,
-    on_view_settings_clicked: Callable,
-):
-    """Slim toolbar — actions only, no redundant title."""
-    new_btn = TextButton(
-        content=Row(
-            controls=[
-                Icon(
-                    Icons.ADD,
-                    size=dimens.SM_ICON_SIZE,
-                    color=colors.accent,
-                ),
-                Text(
-                    "New",
-                    size=fonts.BODY_1_SIZE,
-                    color=colors.accent,
-                    weight=fonts.BOLD_FONT,
-                ),
-            ],
-            spacing=dimens.SPACE_XXS,
-        ),
-        on_click=on_click_new_btn,
-    )
-    toolbar = Container(
-        alignment=Alignment.CENTER,
-        height=dimens.TOOLBAR_HEIGHT,
-        bgcolor=colors.bg,
-        padding=Padding.symmetric(horizontal=dimens.SPACE_LG),
-        content=Row(
-            alignment=MainAxisAlignment.END,
-            vertical_alignment=CrossAxisAlignment.CENTER,
-            controls=[
-                Row(
-                    spacing=dimens.SPACE_XXS,
-                    controls=[
-                        new_btn,
-                        IconButton(
-                            icon=Icons.SETTINGS_OUTLINED,
-                            icon_size=dimens.ICON_SIZE,
-                            icon_color=colors.text_muted,
-                            on_click=on_view_settings_clicked,
-                            tooltip="Preferences",
-                        ),
-                        IconButton(
-                            icon=Icons.PERSON_OUTLINE_OUTLINED,
-                            icon_size=dimens.ICON_SIZE,
-                            icon_color=colors.text_muted,
-                            tooltip="Profile",
-                            on_click=on_click_profile_btn,
-                        ),
-                        PopupMenuButton(
-                            icon=Icons.HELP_OUTLINE,
-                            icon_size=dimens.ICON_SIZE,
-                            icon_color=colors.text_secondary,
-                            items=[
-                                PopupMenuItem(
-                                    icon=Icons.CONTACT_SUPPORT,
-                                    content="Ask a question",
-                                    on_click=lambda _: webbrowser.open(
-                                        "https://github.com/tuttle-dev/tuttle/discussions"
-                                    ),
-                                ),
-                                PopupMenuItem(
-                                    icon=Icons.BUG_REPORT,
-                                    content="Report a bug",
-                                    on_click=lambda _: webbrowser.open(
-                                        "https://github.com/tuttle-dev/tuttle/issues"
-                                    ),
-                                ),
-                            ],
-                        ),
-                    ],
-                ),
-            ],
-        ),
-    )
-    return toolbar, new_btn
 
 
 class MainMenuItemsHandler:
@@ -272,13 +187,31 @@ class HomeScreen(TView, Container):
         self.status_bar_manager = StatusBarManager(
             on_click_overdue=lambda e: self._jump_to_invoicing(),
             on_click_outstanding=lambda e: self._jump_to_invoicing(),
+            on_click_settings=lambda e: self.on_view_settings_clicked(e),
+            on_click_profile=lambda e: self.on_click_profile(e),
+            on_click_help_ask=lambda _: webbrowser.open(
+                "https://github.com/tuttle-dev/tuttle/discussions"
+            ),
+            on_click_help_bug=lambda _: webbrowser.open(
+                "https://github.com/tuttle-dev/tuttle/issues"
+            ),
         )
 
-        # Toolbar (slim, no title — view heading is the title)
-        self.toolbar, self._new_btn = get_toolbar(
-            on_click_new_btn=self.on_click_add_new,
-            on_click_profile_btn=self.on_click_profile,
-            on_view_settings_clicked=self.on_view_settings_clicked,
+        # "+ New" button (shown only for views that support creating entities)
+        self._new_btn = TextButton(
+            content=Row(
+                controls=[
+                    Icon(Icons.ADD, size=dimens.SM_ICON_SIZE, color=colors.accent),
+                    Text(
+                        "New",
+                        size=fonts.BODY_1_SIZE,
+                        color=colors.accent,
+                        weight=fonts.BOLD_FONT,
+                    ),
+                ],
+                spacing=dimens.SPACE_XXS,
+            ),
+            on_click=self.on_click_add_new,
         )
         self._update_new_btn_visibility()
 
@@ -286,7 +219,7 @@ class HomeScreen(TView, Container):
         """Called when the user clicks a sidebar nav item."""
         self._selected_flat_index = self._all_items.index(item)
         self.destination_view = item.destination
-        self.destination_content_container.content = self.destination_view
+        self._destination_wrapper.content = self.destination_view
         self._update_new_btn_visibility()
         self._update_status_bar_for_view(item.label)
         self.update_self()
@@ -323,25 +256,32 @@ class HomeScreen(TView, Container):
 
     # ── Build ─────────────────────────────────────────────────
     def build(self):
-        self.destination_content_container = Container(
-            padding=Padding.all(dimens.SPACE_MD),
+        self._destination_wrapper = Container(
             content=self.destination_view,
             expand=True,
         )
-
-        # Status bar — VS Code style thin bar at bottom
-        self.status_bar = Container(
-            height=dimens.FOOTER_HEIGHT,
-            bgcolor=colors.bg_statusbar,
-            padding=Padding.symmetric(horizontal=dimens.SPACE_SM),
-            content=Row(
-                controls=[
-                    Text("Tuttle", size=11, color=colors.text_inverse),
-                ],
-                alignment=MainAxisAlignment.START,
-                vertical_alignment=CrossAxisAlignment.CENTER,
+        self.destination_content_container = Container(
+            padding=Padding.only(
+                left=dimens.SPACE_MD,
+                right=dimens.SPACE_MD,
+                bottom=dimens.SPACE_MD,
+                top=dimens.SPACE_XS,
             ),
+            content=Column(
+                controls=[
+                    Row(
+                        controls=[self._new_btn],
+                        alignment=MainAxisAlignment.END,
+                    ),
+                    self._destination_wrapper,
+                ],
+                spacing=0,
+            ),
+            expand=True,
         )
+
+        # Status bar — interactive bar built by StatusBarManager
+        self.status_bar = self.status_bar_manager.build()
 
         # Sidebar
         self.side_bar = Container(
@@ -363,7 +303,6 @@ class HomeScreen(TView, Container):
             horizontal_alignment=CrossAxisAlignment.START,
             spacing=0,
             controls=[
-                self.toolbar,
                 self.destination_content_container,
             ],
         )

@@ -9,11 +9,15 @@ from typing import Any, Callable, Optional
 from dataclasses import dataclass
 
 from flet import (
+    Border,
+    BorderSide,
     Container,
     Icon,
     Icons,
     Margin,
     Padding,
+    PopupMenuButton,
+    PopupMenuItem,
     Row,
     Text,
     MainAxisAlignment,
@@ -136,6 +140,10 @@ class StatusBarManager:
         on_click_expiring: Optional[Callable] = None,
         on_click_sync: Optional[Callable] = None,
         on_click_quick_add: Optional[Callable] = None,
+        on_click_settings: Optional[Callable] = None,
+        on_click_profile: Optional[Callable] = None,
+        on_click_help_ask: Optional[Callable] = None,
+        on_click_help_bug: Optional[Callable] = None,
     ):
         self._on_click_overdue = on_click_overdue
         self._on_click_outstanding = on_click_outstanding
@@ -186,21 +194,107 @@ class StatusBarManager:
         self._right_divider = StatusBarDivider()
         self._right_divider.visible = False
 
+        # ── Chrome zone — settings, profile, help (left side) ──
+        self._chrome_divider = StatusBarDivider()
+
+        self.settings_item = StatusBarItem(
+            icon=Icons.SETTINGS_OUTLINED,
+            tooltip="Preferences",
+            on_click=on_click_settings,
+            color=colors.text_muted,
+        )
+        self.profile_item = StatusBarItem(
+            icon=Icons.PERSON_OUTLINE_OUTLINED,
+            tooltip="Profile",
+            on_click=on_click_profile,
+            color=colors.text_muted,
+        )
+        self.help_menu = PopupMenuButton(
+            content=Container(
+                padding=Padding.symmetric(horizontal=dimens.STATUSBAR_ITEM_PADDING_H),
+                border_radius=dimens.RADIUS_SM,
+                content=Row(
+                    controls=[
+                        Icon(
+                            Icons.HELP_OUTLINE,
+                            size=dimens.SM_ICON_SIZE,
+                            color=colors.text_muted,
+                        ),
+                    ],
+                    spacing=0,
+                    vertical_alignment=CrossAxisAlignment.CENTER,
+                ),
+                on_hover=lambda e: self._on_help_hover(e),
+            ),
+            tooltip="Help",
+            menu_padding=Padding.symmetric(vertical=4, horizontal=0),
+            items=[
+                PopupMenuItem(
+                    height=32,
+                    content=Row(
+                        controls=[
+                            Icon(
+                                Icons.CONTACT_SUPPORT,
+                                size=dimens.SM_ICON_SIZE,
+                                color=colors.text_secondary,
+                            ),
+                            Text(
+                                "Ask a question",
+                                size=fonts.BODY_2_SIZE,
+                                color=colors.text_primary,
+                            ),
+                        ],
+                        spacing=dimens.SPACE_XS,
+                        vertical_alignment=CrossAxisAlignment.CENTER,
+                    ),
+                    on_click=on_click_help_ask,
+                ),
+                PopupMenuItem(
+                    height=32,
+                    content=Row(
+                        controls=[
+                            Icon(
+                                Icons.BUG_REPORT,
+                                size=dimens.SM_ICON_SIZE,
+                                color=colors.text_secondary,
+                            ),
+                            Text(
+                                "Report a bug",
+                                size=fonts.BODY_2_SIZE,
+                                color=colors.text_primary,
+                            ),
+                        ],
+                        spacing=dimens.SPACE_XS,
+                        vertical_alignment=CrossAxisAlignment.CENTER,
+                    ),
+                    on_click=on_click_help_bug,
+                ),
+            ],
+        )
+
         # Initialized to None; set by build()
         self.bar: Optional[Container] = None
+
+    def _on_help_hover(self, e):
+        """Hover effect for the help menu button."""
+        e.control.bgcolor = "#20FFFFFF" if e.data == "true" else None
+        e.control.update()
 
     def build(self) -> Container:
         """Build the status bar container."""
         self.bar = Container(
             height=dimens.FOOTER_HEIGHT,
             bgcolor=colors.bg_statusbar,
+            border=Border(top=BorderSide(1, colors.border)),
             padding=Padding.symmetric(horizontal=dimens.SPACE_XS),
             content=Row(
                 controls=[
-                    # Left zone
+                    # Left zone — chrome icons
                     Row(
                         controls=[
-                            self.entity_count_item,
+                            self.settings_item,
+                            self.profile_item,
+                            self.help_menu,
                         ],
                         spacing=0,
                         vertical_alignment=CrossAxisAlignment.CENTER,
@@ -237,12 +331,10 @@ class StatusBarManager:
 
     def update_for_view(
         self,
-        entity_count_text: str,
+        entity_count_text: str = "",
         summary_text: str = "",
     ):
-        """Update status bar text for the currently active view."""
-        self.entity_count_item.set_text(entity_count_text)
-
+        """Update status bar for the currently active view."""
         if summary_text:
             self.entity_summary_item.set_text(summary_text)
             self.entity_summary_item.visible = True

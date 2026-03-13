@@ -18,7 +18,6 @@ SPACE_XL = 30
 SPACE_XXL = 48
 
 # ── Layout chrome ────────────────────────────────────────────
-TOOLBAR_HEIGHT = 44
 FOOTER_HEIGHT = 24  # compact status bar height
 SIDEBAR_WIDTH = 224  # slightly narrower for denser shell
 SIDEBAR_COLLAPSED_WIDTH = 48

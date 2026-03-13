@@ -148,12 +148,7 @@ class TaxView(TView, Column):
                 content=Column(
                     spacing=dimens.SPACE_XS,
                     controls=[
-                        Text(
-                            "Tax & Reserves",
-                            size=fonts.HEADLING_1_SIZE,
-                            color=colors.text_primary,
-                            weight=fonts.BOLDER_FONT,
-                        ),
+                        views.THeading("Tax & Reserves", size=fonts.HEADLINE_3_SIZE),
                         Text(
                             "How much of your revenue can you actually spend?",
                             size=fonts.BODY_1_SIZE,
