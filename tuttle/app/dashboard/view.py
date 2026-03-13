@@ -20,6 +20,7 @@ from flet import (
     Icons,
     MainAxisAlignment,
     Padding,
+    ProgressRing,
     ResponsiveRow,
     Row,
     ScrollMode,
@@ -200,6 +201,21 @@ class DashboardView(TView, Column):
         self._revenue_section = Column(spacing=0)
         self._budget_section = Column(spacing=0)
         self._goals_section = Column(spacing=0)
+        self._spinner = ProgressRing(
+            width=32, height=32, stroke_width=3, color=colors.accent
+        )
+        self._content = Column(
+            spacing=dimens.SPACE_XS,
+            visible=False,
+            controls=[
+                views.Spacer(sm_space=True),
+                self._kpi_row,
+                self._tax_row,
+                self._revenue_section,
+                self._budget_section,
+                self._goals_section,
+            ],
+        )
 
         self.controls = [
             Container(
@@ -213,12 +229,11 @@ class DashboardView(TView, Column):
                             color=colors.text_primary,
                             weight=fonts.BOLDER_FONT,
                         ),
-                        views.Spacer(sm_space=True),
-                        self._kpi_row,
-                        self._tax_row,
-                        self._revenue_section,
-                        self._budget_section,
-                        self._goals_section,
+                        Row(
+                            alignment=MainAxisAlignment.CENTER,
+                            controls=[self._spinner],
+                        ),
+                        self._content,
                     ],
                 ),
             )
@@ -237,6 +252,9 @@ class DashboardView(TView, Column):
 
     def _load_data(self):
         """Kick off data loading in a background thread to keep the UI responsive."""
+        self._spinner.visible = True
+        self._content.visible = False
+        self.update_self()
         threading.Thread(target=self._load_data_sync, daemon=True).start()
 
     def _load_data_sync(self):
@@ -245,6 +263,8 @@ class DashboardView(TView, Column):
         self._load_monthly_chart()
         self._load_project_budgets()
         self._load_goals()
+        self._spinner.visible = False
+        self._content.visible = True
         self.update_self()
 
     # ── KPI cards ─────────────────────────────────────────────
