@@ -51,7 +51,7 @@ class _KPICard(Container):
         super().__init__(
             bgcolor=colors.bg_surface,
             border_radius=dimens.RADIUS_LG,
-            padding=Padding.all(dimens.SPACE_STD),
+            padding=Padding.all(dimens.SPACE_SM),
             col={"xs": 12, "sm": 6, "md": 4, "lg": 3},
             content=Column(
                 spacing=dimens.SPACE_XS,
@@ -85,7 +85,7 @@ class _KPICard(Container):
 # ── Revenue Bar (native) ─────────────────────────────────────
 
 
-_BAR_CHART_HEIGHT = 180
+_BAR_CHART_HEIGHT = 160
 
 
 class _VerticalBar(Column):
@@ -218,7 +218,7 @@ def _section_header(title: str, icon=None) -> Container:
         )
     )
     return Container(
-        padding=Padding.only(top=dimens.SPACE_LG, bottom=dimens.SPACE_SM),
+        padding=Padding.only(top=dimens.SPACE_MD, bottom=dimens.SPACE_XS),
         content=Row(spacing=dimens.SPACE_XS, controls=controls),
     )
 
@@ -250,7 +250,7 @@ class DashboardView(TView, Column):
 
         self.controls = [
             Container(
-                padding=Padding.all(dimens.SPACE_MD),
+                padding=Padding.all(dimens.SPACE_STD),
                 content=Column(
                     spacing=dimens.SPACE_XS,
                     controls=[
