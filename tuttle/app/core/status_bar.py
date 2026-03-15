@@ -5,6 +5,7 @@ contextual, showing live business health at a glance.
 """
 
 import datetime
+import threading
 from typing import Any, Callable, Optional
 from dataclasses import dataclass
 
@@ -272,6 +273,15 @@ class StatusBarManager:
             ],
         )
 
+        # ── Transient message (replaces SnackBar) ──
+        self._message_divider = StatusBarDivider()
+        self._message_divider.visible = False
+        self._message_item = StatusBarItem(
+            text="",
+            visible=False,
+        )
+        self._message_timer: Optional[threading.Timer] = None
+
         # Initialized to None; set by build()
         self.bar: Optional[Container] = None
 
@@ -299,13 +309,15 @@ class StatusBarManager:
                         spacing=0,
                         vertical_alignment=CrossAxisAlignment.CENTER,
                     ),
-                    # Center zone — warnings
+                    # Center zone — warnings + transient messages
                     Row(
                         controls=[
                             self._warning_divider,
                             self.overdue_item,
                             self.outstanding_item,
                             self.expiring_item,
+                            self._message_divider,
+                            self._message_item,
                         ],
                         spacing=0,
                         vertical_alignment=CrossAxisAlignment.CENTER,
@@ -383,6 +395,34 @@ class StatusBarManager:
                 self.bar.bgcolor = colors.bg_statusbar_warning
             else:
                 self.bar.bgcolor = colors.bg_statusbar
+
+    # ── Transient messages ───────────────────────────────────
+
+    def show_message(
+        self,
+        message: str,
+        is_error: bool = False,
+        duration: float = 5.0,
+    ):
+        """Show a temporary message in the status bar, auto-dismissed after *duration* seconds."""
+        if self._message_timer:
+            self._message_timer.cancel()
+
+        self._message_item.set_text(message)
+        self._message_item.set_color(colors.danger if is_error else colors.text_primary)
+        self._message_item.visible = True
+        self._message_divider.visible = True
+        self.try_update()
+
+        self._message_timer = threading.Timer(duration, self._dismiss_message)
+        self._message_timer.daemon = True
+        self._message_timer.start()
+
+    def _dismiss_message(self):
+        self._message_item.visible = False
+        self._message_divider.visible = False
+        self._message_timer = None
+        self.try_update()
 
     def try_update(self):
         """Try to push visual updates to the bar."""

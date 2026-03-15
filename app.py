@@ -87,6 +87,7 @@ class TuttleApp:
         self.page.on_view_pop = self.on_view_pop
         self.route_parser = TuttleRoutes(self)
         self.current_route_view: Optional[RouteView] = None
+        self.status_bar_manager = None
         self.page.on_resize = self.page_resize
 
     def page_resize(self, e):
@@ -158,16 +159,12 @@ class TuttleApp:
         action_label: Optional[str] = None,
         action_callback: Optional[Callable] = None,
     ):
-        """callback function used by views to display a snack bar message"""
-        from flet import SnackBarAction
+        """Display a transient message in the status bar."""
+        if self.status_bar_manager is not None:
+            self.status_bar_manager.show_message(message, is_error=is_error)
+            return
 
-        action = None
-        if action_label:
-            action = SnackBarAction(
-                label=action_label,
-                text_color=accent,
-                on_click=action_callback,
-            )
+        # Fallback for screens that don't have a status bar (e.g. splash)
         snack = SnackBar(
             content=THeading(
                 title=message,
@@ -175,7 +172,6 @@ class TuttleApp:
                 color=danger if is_error else text_primary,
             ),
             bgcolor=bg_surface,
-            action=action,
             open=True,
         )
 
@@ -287,6 +283,7 @@ class TuttleRoutes:
     """Utility class for parsing of routes to destination views"""
 
     def __init__(self, app: TuttleApp):
+        self.app = app
         # init callbacks for some views
         self.on_theme_changed = app.on_theme_mode_changed
         self.on_reset_and_quit = app.reset_and_quit
@@ -342,6 +339,7 @@ class TuttleRoutes:
                 on_theme_changed_callback=self.on_theme_changed,
                 on_reset_app_callback=self.on_reset_and_quit,
             )
+            self.app.status_bar_manager = screen.status_bar_manager
         elif routePath.match(PROFILE_SCREEN_ROUTE):
             screen = ProfileScreen(
                 params=self.tuttle_view_params,
