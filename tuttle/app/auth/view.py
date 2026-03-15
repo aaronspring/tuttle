@@ -1,33 +1,30 @@
 from typing import Callable, Optional
 from pathlib import Path
 from flet import (
+    BorderRadius,
+    ButtonStyle,
     Column,
     Container,
-    Alignment,
+    CrossAxisAlignment,
+    Icon,
     IconButton,
     Icons,
-    Border,
-    BorderSide,
+    MainAxisAlignment,
+    Padding,
     ResponsiveRow,
     Row,
     ScrollMode,
-    Control,
-    Padding,
     Text,
-    NavigationRailDestination,
-    Icon,
+    TextButton,
 )
 
 from ..auth.intent import AuthIntent
 from ..core import utils, views
 from ..core.abstractions import TView, TViewParams
 from ..core.intent_result import IntentResult
-from ..res import dimens, fonts, image_paths, res_utils, colors, theme
-from ..preferences.intent import PreferencesIntent
+from ..res import dimens, fonts, image_paths, res_utils, colors
 from ...model import User, BankAccount
 from ...tax import supported_countries
-
-from .intent import AuthIntent
 
 
 class PaymentDataForm(Column):
@@ -464,385 +461,46 @@ class SplashScreen(TView, Column):
         self.mounted = False
 
 
-class ProfileMenuItemsHandler:
-    """Manages profile's main-menu items"""
-
-    def __init__(
-        self,
-        params: TViewParams,
-    ):
-        super().__init__()
-        self.menu_title = "My Profile"
-        self.items = [
-            views.NavigationMenuItem(
-                index=0,
-                label="Profile Photo",
-                icon=utils.TuttleComponentIcons.profile_photo_icon,
-                selected_icon=utils.TuttleComponentIcons.profile_photo_selected_icon,
-                destination=ProfilePhotoContent(params=params),
-            ),
-            views.NavigationMenuItem(
-                index=1,
-                label="Personal Info",
-                icon=utils.TuttleComponentIcons.profile_icon,
-                selected_icon=utils.TuttleComponentIcons.profile_selected_icon,
-                destination=UserInfoContent(params=params),
-            ),
-            views.NavigationMenuItem(
-                index=1,
-                label="Payment Settings",
-                icon=utils.TuttleComponentIcons.payment_icon,
-                selected_icon=utils.TuttleComponentIcons.payment_selected_icon,
-                destination=PaymentInfoContent(params=params),
-            ),
-        ]
-
-
-def profile_destination_content_wrapper(
-    controls: list[
-        Control,
-    ],
-):
-    """returns a container that wraps the destination content"""
-    # ADD SPACING TO THE TOP OF THE CONTENT
-    controls.insert(0, views.Spacer(md_space=True))
-    return Column(
-        spacing=dimens.SPACE_STD,
-        run_spacing=0,
-        controls=controls,
-    )
-
-
-class ProfilePhotoContent(TView, Column):
-    """Content for profile photo"""
-
-    def __init__(self, params: TViewParams):
-        super().__init__(params)
-        self.intent = AuthIntent()
-        self.uploaded_photo_path = ""
-        self.user_profile: User = None
-
-    def on_update_photo_clicked(self, e):
-        """Callback for when user clicks on the update photo button"""
-        self.pick_file_callback(
-            on_file_picker_result=self.on_profile_photo_picked,
-            allowed_extensions=["png", "jpeg", "jpg"],
-            dialog_title="Tuttle profile photo",
-            file_type="custom",
-        )
-
-    def on_profile_photo_picked(self, e):
-        """Callback for when profile photo has been picked"""
-        if e.files and len(e.files) > 0:
-            file = e.files[0]
-            upload_url = Path(file.path)
-            if upload_url:
-                self.uploaded_photo_path = str(upload_url)
-                self.setProfilePic()
-
-    def setProfilePic(self):
-        """Updates the profile photo"""
-        if not self.uploaded_photo_path:
-            return
-        result = self.intent.update_user_photo_path(
-            self.user_profile,
-            self.uploaded_photo_path,
-        )
-        # assume error occurred
-        msg = result.error_msg
-        is_err = True
-        if result.was_intent_successful:
-            self.profile_photo_img.src_base64 = utils.toBase64(self.uploaded_photo_path)
-            msg = "Profile photo updated"
-            is_err = False
-        self.show_snack(msg, is_err)
-        if is_err:
-            self.user_profile.profile_photo_path = ""
-        self.uploaded_photo_path = None  # clear
-        self.update_self()
-
-    def build(self):
-        self.profile_photo_img = views.TProfilePhotoImg()
-        self.update_photo_btn = views.TSecondaryButton(
-            label="Update Photo",
-            on_click=self.on_update_photo_clicked,
-        )
-        self.profile_photo_content = [
-            views.THeading(
-                "Profile Photo",
-                size=fonts.HEADLINE_4_SIZE,
-            ),
-            self.profile_photo_img,
-            self.update_photo_btn,
-        ]
-        wrapper = profile_destination_content_wrapper(
-            controls=self.profile_photo_content,
-        )
-        self.controls = [wrapper]
-
-    def did_mount(self):
-
-        """Called when the view is mounted on page"""
-        self.mounted = True
-        result: IntentResult = self.intent.get_user_if_exists()
-        if not result.was_intent_successful:
-            self.show_snack(result.error_msg, True)
-        else:
-            self.user_profile: User = result.data
-            if self.user_profile.profile_photo_path:
-                self.profile_photo_img.src_base64 = utils.toBase64(
-                    self.user_profile.profile_photo_path
-                )
-            self.update_self()
-
-    def will_unmount(self):
-        """Called when the view is unmounted from page"""
-        self.mounted = False
-
-
-class UserInfoContent(TView, Column):
-    """Content for user info"""
-
-    def __init__(self, params: TViewParams):
-        super().__init__(params)
-        self.intent = AuthIntent()
-        self.user_profile: User = None
-
-    def on_profile_updated(self, data):
-        """Callback for when user profile has been updated successfully"""
-        self.show_snack("Your profile has been updated")
-        self.user_profile: User = data
-
-    def build(self):
-        """Builds the view"""
-        self.user_info_form = UserDataForm(
-            on_form_submit=lambda title, name, email, phone, street, street_num, postal_code, city, country, website, operating_country=None: self.intent.update_user_with_info(
-                title=title,
-                name=name,
-                email=email,
-                phone=phone,
-                street=street,
-                street_num=street_num,
-                postal_code=postal_code,
-                city=city,
-                country=country,
-                website=website,
-                operating_country=operating_country,
-                user=self.user_profile,
-            ),
-            on_submit_success=self.on_profile_updated,
-            submit_btn_label="Save",
-        )
-        self.user_info_content = [
-            views.THeading(
-                "Personal Info",
-                size=fonts.HEADLINE_4_SIZE,
-            ),
-            self.user_info_form,
-        ]
-        wrapper = profile_destination_content_wrapper(self.user_info_content)
-        self.controls = [wrapper]
-
-    def did_mount(self):
-
-        """Called when the view is mounted on page"""
-        self.mounted = True
-        result: IntentResult = self.intent.get_user_if_exists()
-        if not result.was_intent_successful:
-            self.show_snack(result.error_msg, True)
-        else:
-            self.user_profile: User = result.data
-            # refresh user data form
-            self.user_info_form.refresh_user_info(self.user_profile)
-            self.update_self()
-
-    def will_unmount(self):
-        """Called when the view is unmounted from page"""
-        self.mounted = False
-
-
-class PaymentInfoContent(TView, Column):
-    """Content for payment info"""
-
-    def __init__(self, params: TViewParams):
-        super().__init__(params)
-        self.intent = AuthIntent()
-        self.user_profile: User = None
-
-    def on_update_payment_info(self, user: User):
-        """Callback for when user updates their payment information"""
-        result: IntentResult = self.intent.update_user(user)
-        if result.was_intent_successful:
-            self.show_snack("Payment information updated successfully")
-            self.user_profile = result.data
-            self.payment_data_form.update_form_data(user=self.user_profile)
-        else:
-            self.show_snack(result.error_msg, is_error=True)
-
-    def build(self):
-        self.payment_data_form = PaymentDataForm(
-            on_form_submit=self.on_update_payment_info,
-        )
-        self.payment_info_content = [
-            views.THeading(
-                "Payment Settings",
-                size=fonts.HEADLINE_4_SIZE,
-            ),
-            self.payment_data_form,
-        ]
-        wrapper = profile_destination_content_wrapper(self.payment_info_content)
-        self.controls = [wrapper]
-
-    def did_mount(self):
-        """Called when the view is mounted on page"""
-        self.mounted = True
-        result: IntentResult = self.intent.get_user_if_exists()
-        if not result.was_intent_successful:
-            self.show_snack(result.error_msg, True)
-            self.navigate_back()  # navigate out
-        else:
-            self.user_profile: User = result.data
-            # setup payment info form
-            self.payment_data_form.update_form_data(user=self.user_profile)
-            self.update_self()
-
-    def will_unmount(self):
-        """Called when the view is unmounted from page"""
-        self.mounted = False
-
-
 class ProfileScreen(TView, Column):
-    """User profile screen"""
+    """User profile screen — single-page layout with back button."""
 
     def __init__(self, params: TViewParams):
         super().__init__(params=params)
-        self.preferences_intent = PreferencesIntent(
-            client_storage=params.client_storage,
-        )
-        self.menu_handler = ProfileMenuItemsHandler(
-            params=params,
-        )
-        self.current_menu_index = 0
-        # initialize the side bar menu
-        self.side_bar_menu = views.TNavigationMenu(
-            title=self.menu_handler.menu_title,
-            destinations=self.get_menu_destinations(),
-            on_change=lambda e: self.on_menu_destination_change(e),
-            top_margin=0,
-        )
-        # initialize the destination view to the first menu item's destination
-        self.destination_view = self.menu_handler.items[
-            self.current_menu_index
-        ].destination
-
-    def get_menu_destinations(self):
-        """Returns the destinations for the navigation menu"""
-        items = []
-        for item in self.menu_handler.items:
-            itemDestination = NavigationRailDestination(
-                icon=item.icon,
-                selected_icon=item.selected_icon,
-                label=views.TBodyText(item.label),
-                padding=Padding.symmetric(horizontal=dimens.SPACE_SM),
-            )
-            items.append(itemDestination)
-        return items
-
-    def on_menu_destination_change(self, e):
-        """Handles menu destination change"""
-        if self.mounted:
-            self.current_menu_index: int = e.control.selected_index
-            menu_item = self.menu_handler.items[self.current_menu_index]
-            self.destination_view = menu_item.destination
-            self.destination_content_container.content = self.destination_view
-            self.update_self()
+        self._profile_content = ProfileContent(params=params)
 
     def build(self):
-        """Builds the profile screen"""
-        self.destination_content_container = Container(
-            padding=Padding.all(dimens.SPACE_MD),
-            content=self.destination_view,
-            col={
-                "xs": 7,
-                "md": 8,
-                "lg": 9,
-            },
-        )
-        self.side_bar = Container(
-            col={"xs": 4, "md": 3, "lg": 2},
-            padding=Padding.only(top=dimens.SPACE_SM),
-            content=Column(
-                controls=[
-                    Container(
+        self.controls = [
+            Container(
+                padding=Padding.symmetric(
+                    horizontal=dimens.SPACE_XL,
+                    vertical=dimens.SPACE_MD,
+                ),
+                expand=True,
+                content=Column(
+                    controls=[
                         IconButton(
                             icon=Icons.KEYBOARD_ARROW_LEFT,
                             on_click=self.navigate_back,
                             icon_size=dimens.MD_ICON_SIZE,
                         ),
-                        padding=Padding.symmetric(vertical=dimens.SPACE_STD),
-                    ),
-                    self.side_bar_menu,
-                ]
+                        self._profile_content,
+                    ],
+                    expand=True,
+                ),
             ),
-            alignment=Alignment.CENTER,
-            border=Border.only(
-                right=BorderSide(
-                    width=0.2,
-                    color=colors.BORDER_DARK_COLOR,
-                )
-            ),
-        )
-
-        self.profile_screen_view = ResponsiveRow(
-            controls=[
-                self.side_bar,
-                self.destination_content_container,
-            ],
-            spacing=0,
-            alignment=utils.START_ALIGNMENT,
-            vertical_alignment=utils.START_ALIGNMENT,
-            expand=1,
-        )
-        self.controls = [self.profile_screen_view]
+        ]
 
     def did_mount(self):
-        """Called when the view is mounted on page"""
         self.mounted = True
-        self.load_preferred_theme()
-
-    def load_preferred_theme(self):
-        """Sets the UI theme from the user's preferences"""
-        result = self.preferences_intent.get_preferred_theme()
-        if not result.was_intent_successful:
-            self.show_snack(result.error_msg, is_error=True)
-            return
-        self.preferred_theme = result.data
-        side_bar_components = [
-            self.side_bar,
-            self.side_bar_menu,
-        ]
-        side_bar_bg_color = colors.SIDEBAR_DARK_COLOR  # default is dark mode
-        if self.preferred_theme == theme.THEME_MODES.light.value:
-            side_bar_bg_color = colors.SIDEBAR_LIGHT_COLOR
-        for component in side_bar_components:
-            component.bgcolor = side_bar_bg_color
-        self.update_self()
-
-    def on_window_resized_listener(self, width, height):
-        if not self.mounted:
-            return
-        super().on_window_resized_listener(width, height)
-        self.profile_screen_view.height = self.page_height
-        self.destination_content_container.height = self.page_height
-        self.update_self()
 
     def will_unmount(self):
-        """Called when the view is unmounted from page"""
         self.mounted = False
 
 
 class ProfileContent(TView, Column):
-    """Inline tabbed profile view for embedding in the home shell."""
+    """Display-first profile page with flat settings-style layout and inline editing."""
+
+    _LABEL_WIDTH = 140
 
     def __init__(self, params: TViewParams):
         super().__init__(params=params)
@@ -850,25 +508,103 @@ class ProfileContent(TView, Column):
         self.user_profile: User = None
         self.uploaded_photo_path = ""
 
-    # -- Photo tab callbacks --
+    # ── Layout helpers ────────────────────────────────────────
 
-    def on_update_photo_clicked(self, e):
+    @staticmethod
+    def _profile_row(label: str, value: str) -> Row:
+        """Label-value row: muted fixed-width label + primary-color value."""
+        return Row(
+            controls=[
+                Text(
+                    label,
+                    size=fonts.BODY_1_SIZE,
+                    color=colors.text_muted,
+                    width=ProfileContent._LABEL_WIDTH,
+                ),
+                Text(
+                    value if value else "\u2014",
+                    size=fonts.BODY_1_SIZE,
+                    color=colors.text_primary if value else colors.text_muted,
+                    expand=True,
+                ),
+            ],
+            spacing=dimens.SPACE_MD,
+        )
+
+    @staticmethod
+    def _section_divider() -> Container:
+        """Subtle 1px hairline divider."""
+        return Container(height=1, bgcolor=colors.border)
+
+    @staticmethod
+    def _section_header(title: str, on_edit=None) -> Row:
+        """Section heading with optional right-aligned Edit text button."""
+        controls = [
+            Text(
+                title,
+                size=fonts.HEADLINE_3_SIZE,
+                color=colors.text_primary,
+                weight=fonts.BOLD_FONT,
+                expand=True,
+            ),
+        ]
+        if on_edit:
+            controls.append(
+                TextButton(
+                    "Edit",
+                    on_click=on_edit,
+                    style=ButtonStyle(color=colors.accent),
+                )
+            )
+        return Row(controls=controls)
+
+    @staticmethod
+    def _format_address(address) -> str:
+        if not address or address.is_empty:
+            return ""
+        lines = []
+        street_line = f"{address.street} {address.number}".strip()
+        if street_line:
+            lines.append(street_line)
+        city_line = f"{address.postal_code} {address.city}".strip()
+        if city_line:
+            lines.append(city_line)
+        if address.country:
+            lines.append(address.country)
+        return "\n".join(lines)
+
+    def _edit_cancel_row(self, on_save) -> Row:
+        return Row(
+            controls=[
+                views.TPrimaryButton(label="Save", on_click=on_save),
+                TextButton(
+                    "Cancel",
+                    on_click=self._cancel_edit,
+                    style=ButtonStyle(color=colors.text_muted),
+                ),
+            ],
+            spacing=dimens.SPACE_SM,
+        )
+
+    # ── Photo callbacks ───────────────────────────────────────
+
+    def _on_update_photo_clicked(self, e):
         self.pick_file_callback(
-            on_file_picker_result=self.on_profile_photo_picked,
+            on_file_picker_result=self._on_profile_photo_picked,
             allowed_extensions=["png", "jpeg", "jpg"],
             dialog_title="Tuttle profile photo",
             file_type="custom",
         )
 
-    def on_profile_photo_picked(self, e):
+    def _on_profile_photo_picked(self, e):
         if e.files and len(e.files) > 0:
             file = e.files[0]
             upload_url = Path(file.path)
             if upload_url:
                 self.uploaded_photo_path = str(upload_url)
-                self._set_profile_pic()
+                self._save_profile_pic()
 
-    def _set_profile_pic(self):
+    def _save_profile_pic(self):
         if not self.uploaded_photo_path:
             return
         result = self.intent.update_user_photo_path(
@@ -878,145 +614,347 @@ class ProfileContent(TView, Column):
         msg = result.error_msg
         is_err = True
         if result.was_intent_successful:
-            self.profile_photo_img.src_base64 = utils.toBase64(self.uploaded_photo_path)
+            self._photo_img.src_base64 = utils.toBase64(self.uploaded_photo_path)
+            self._show_photo(True)
             msg = "Profile photo updated"
             is_err = False
         self.show_snack(msg, is_err)
         if is_err:
             self.user_profile.profile_photo_path = ""
+            self._show_photo(False)
         self.uploaded_photo_path = None
         self.update_self()
 
-    # -- Personal info callbacks --
+    # ── Save helper for personal info sections ────────────────
 
-    def on_profile_updated(self, data):
-        self.show_snack("Your profile has been updated")
-        self.user_profile = data
-
-    # -- Payment callbacks --
-
-    def on_update_payment_info(self, user: User):
-        result: IntentResult = self.intent.update_user(user)
+    def _save_user_info(self, **overrides):
+        """Save user info, merging overrides with existing user_profile values."""
+        user = self.user_profile
+        addr = user.address
+        kwargs = dict(
+            title=user.subtitle,
+            name=user.name,
+            email=user.email,
+            phone=user.phone_number or "",
+            street=addr.street if addr else "",
+            street_num=addr.number if addr else "",
+            postal_code=addr.postal_code if addr else "",
+            city=addr.city if addr else "",
+            country=addr.country if addr else "",
+            website=user.website or "",
+            operating_country=user.operating_country or "",
+            user=user,
+        )
+        kwargs.update(overrides)
+        result: IntentResult = self.intent.update_user_with_info(**kwargs)
         if result.was_intent_successful:
-            self.show_snack("Payment information updated successfully")
             self.user_profile = result.data
-            self.payment_data_form.update_form_data(user=self.user_profile)
+            self.show_snack("Profile updated")
+            self._rebuild_display()
         else:
-            self.show_snack(result.error_msg, is_error=True)
-
-    def _make_tab_content(self, content_controls):
-        return Container(
-            content=Column(
-                controls=content_controls,
-                scroll=ScrollMode.AUTO,
-            ),
-            padding=Padding.symmetric(
-                vertical=dimens.SPACE_MD, horizontal=dimens.SPACE_XS
-            ),
-            expand=True,
-        )
-
-    def _build_tab_header(self, label, index):
-        selected = index == self._selected_tab
-        return Container(
-            on_click=lambda e, idx=index: self._select_tab(idx),
-            padding=Padding.symmetric(
-                horizontal=dimens.SPACE_SM, vertical=dimens.SPACE_XS
-            ),
-            border=Border(
-                bottom=BorderSide(2, colors.accent if selected else "transparent"),
-            ),
-            content=Text(
-                label,
-                size=fonts.BODY_1_SIZE,
-                color=colors.text_primary if selected else colors.text_muted,
-                weight=fonts.BOLD_FONT if selected else None,
-            ),
-        )
-
-    def _rebuild_tab_bar(self):
-        self._tab_bar.controls = [
-            self._build_tab_header(label, i) for i, label in enumerate(self._tab_labels)
-        ]
-
-    def _select_tab(self, index):
-        self._selected_tab = index
-        self._tab_content_area.content = self._tab_contents[index]
-        self._rebuild_tab_bar()
+            self.show_snack(result.error_msg, True)
         self.update_self()
 
+    # ── Edit mode handlers ────────────────────────────────────
+
+    def _edit_contact(self, e):
+        user = self.user_profile
+        name_f = views.TTextField(label="Name", initial_value=user.name)
+        title_f = views.TTextField(label="Job Title", initial_value=user.subtitle)
+        email_f = views.TTextField(label="Email", initial_value=user.email)
+        phone_f = views.TTextField(label="Phone", initial_value=user.phone_number or "")
+        website_f = views.TTextField(label="Website", initial_value=user.website or "")
+
+        def save(e):
+            self._save_user_info(
+                name=name_f.value,
+                title=title_f.value,
+                email=email_f.value,
+                phone=phone_f.value,
+                website=website_f.value,
+            )
+
+        self._contact_body.content = Column(
+            spacing=dimens.SPACE_SM,
+            controls=[
+                name_f,
+                title_f,
+                email_f,
+                phone_f,
+                website_f,
+                views.Spacer(xs_space=True),
+                self._edit_cancel_row(save),
+            ],
+        )
+        self.update_self()
+
+    def _edit_address(self, e):
+        addr = self.user_profile.address
+        street_f = views.TTextField(
+            label="Street", initial_value=addr.street if addr else "", expand=1
+        )
+        number_f = views.TTextField(
+            label="Number", initial_value=addr.number if addr else "", expand=1
+        )
+        postal_f = views.TTextField(
+            label="Postal Code",
+            initial_value=addr.postal_code if addr else "",
+            expand=1,
+        )
+        city_f = views.TTextField(
+            label="City", initial_value=addr.city if addr else "", expand=1
+        )
+        country_f = views.TTextField(
+            label="Country", initial_value=addr.country if addr else ""
+        )
+
+        def save(e):
+            self._save_user_info(
+                street=street_f.value,
+                street_num=number_f.value,
+                postal_code=postal_f.value,
+                city=city_f.value,
+                country=country_f.value,
+            )
+
+        self._address_body.content = Column(
+            spacing=dimens.SPACE_SM,
+            controls=[
+                Row(controls=[street_f, number_f], spacing=dimens.SPACE_SM),
+                Row(controls=[postal_f, city_f], spacing=dimens.SPACE_SM),
+                country_f,
+                views.Spacer(xs_space=True),
+                self._edit_cancel_row(save),
+            ],
+        )
+        self.update_self()
+
+    def _edit_business(self, e):
+        country_dd = views.TDropDown(
+            label="Operating Country (tax jurisdiction)",
+            items=supported_countries(),
+            hint="Select country",
+        )
+        if self.user_profile.operating_country:
+            country_dd.update_value(self.user_profile.operating_country)
+
+        def save(e):
+            self._save_user_info(
+                operating_country=country_dd.value or "",
+            )
+
+        self._business_body.content = Column(
+            spacing=dimens.SPACE_SM,
+            controls=[
+                country_dd,
+                views.Spacer(xs_space=True),
+                self._edit_cancel_row(save),
+            ],
+        )
+        self.update_self()
+
+    def _edit_payment(self, e):
+        user = self.user_profile
+        ba = user.bank_account
+        vat_f = views.TTextField(
+            label="VAT Number", initial_value=user.VAT_number or ""
+        )
+        bank_f = views.TTextField(
+            label="Bank Name", initial_value=ba.name if ba else ""
+        )
+        iban_f = views.TTextField(label="IBAN", initial_value=ba.IBAN if ba else "")
+        bic_f = views.TTextField(label="BIC", initial_value=ba.BIC if ba else "")
+
+        def save(e):
+            if not user.bank_account:
+                user.bank_account = BankAccount(name="", BIC="", IBAN="")
+            user.VAT_number = vat_f.value
+            user.bank_account.name = bank_f.value
+            user.bank_account.IBAN = iban_f.value
+            user.bank_account.BIC = bic_f.value
+            result: IntentResult = self.intent.update_user(user)
+            if result.was_intent_successful:
+                self.user_profile = result.data
+                self.show_snack("Payment information updated")
+                self._rebuild_display()
+            else:
+                self.show_snack(result.error_msg, True)
+            self.update_self()
+
+        self._payment_body.content = Column(
+            spacing=dimens.SPACE_SM,
+            controls=[
+                vat_f,
+                views.Spacer(xs_space=True),
+                views.TSubHeading("Bank Account"),
+                bank_f,
+                iban_f,
+                bic_f,
+                views.Spacer(xs_space=True),
+                self._edit_cancel_row(save),
+            ],
+        )
+        self.update_self()
+
+    def _cancel_edit(self, e):
+        self._rebuild_display()
+        self.update_self()
+
+    # ── Display rebuild ───────────────────────────────────────
+
+    def _rebuild_display(self):
+        """Populate all section bodies with read-only content from user_profile."""
+        user = self.user_profile
+        if not user:
+            return
+
+        self._header_name.value = user.name
+        self._header_subtitle.value = user.subtitle
+
+        self._contact_body.content = Column(
+            spacing=dimens.SPACE_XS,
+            controls=[
+                self._profile_row("Email", user.email),
+                self._profile_row("Phone", user.phone_number),
+                self._profile_row("Website", user.website),
+            ],
+        )
+
+        addr_text = self._format_address(user.address)
+        self._address_body.content = Text(
+            addr_text or "No address set",
+            size=fonts.BODY_1_SIZE,
+            color=colors.text_primary if addr_text else colors.text_muted,
+        )
+
+        self._business_body.content = Column(
+            spacing=dimens.SPACE_XS,
+            controls=[
+                self._profile_row("Operating Country", user.operating_country),
+            ],
+        )
+
+        ba = user.bank_account
+        self._payment_body.content = Column(
+            spacing=dimens.SPACE_XS,
+            controls=[
+                self._profile_row("VAT Number", user.VAT_number),
+                self._profile_row("Bank", ba.name if ba else ""),
+                self._profile_row("IBAN", ba.IBAN if ba else ""),
+                self._profile_row("BIC", ba.BIC if ba else ""),
+            ],
+        )
+
+    # ── Build / lifecycle ─────────────────────────────────────
+
+    def _build_avatar(self) -> Container:
+        """80px circular avatar with icon fallback when no photo is set."""
+        self._photo_img = views.TProfilePhotoImg()
+        self._photo_img.width = 80
+        self._photo_img.height = 80
+        self._photo_img.border_radius = BorderRadius.all(40)
+        self._photo_img.visible = False
+
+        self._avatar_placeholder = Container(
+            width=80,
+            height=80,
+            border_radius=BorderRadius.all(40),
+            bgcolor=colors.bg_surface,
+            content=Column(
+                controls=[Icon(Icons.PERSON, size=36, color=colors.text_muted)],
+                alignment=MainAxisAlignment.CENTER,
+                horizontal_alignment=CrossAxisAlignment.CENTER,
+                expand=True,
+            ),
+        )
+
+        self._avatar_stack = Container(
+            width=80,
+            height=80,
+            content=self._avatar_placeholder,
+        )
+        return self._avatar_stack
+
+    def _show_photo(self, has_photo: bool):
+        """Toggle between photo image and placeholder icon."""
+        if has_photo:
+            self._avatar_stack.content = self._photo_img
+            self._photo_img.visible = True
+        else:
+            self._avatar_stack.content = self._avatar_placeholder
+
     def build(self):
-        self._selected_tab = 0
-        self._tab_labels = ["Personal Info", "Payment", "Photo"]
-        self.loading_indicator = views.TProgressBar(show=False)
+        avatar = self._build_avatar()
 
-        self.profile_photo_img = views.TProfilePhotoImg()
-        self.update_photo_btn = views.TSecondaryButton(
-            label="Update Photo",
-            on_click=self.on_update_photo_clicked,
+        self._header_name = Text(
+            "",
+            size=fonts.HEADLING_1_SIZE,
+            color=colors.text_primary,
+            weight=fonts.BOLD_FONT,
+        )
+        self._header_subtitle = Text(
+            "",
+            size=fonts.SUBTITLE_1_SIZE,
+            color=colors.text_secondary,
         )
 
-        self.user_info_form = UserDataForm(
-            on_form_submit=lambda title, name, email, phone, street, street_num, postal_code, city, country, website, operating_country=None: self.intent.update_user_with_info(
-                title=title,
-                name=name,
-                email=email,
-                phone=phone,
-                street=street,
-                street_num=street_num,
-                postal_code=postal_code,
-                city=city,
-                country=country,
-                website=website,
-                operating_country=operating_country,
-                user=self.user_profile,
-            ),
-            on_submit_success=self.on_profile_updated,
-            submit_btn_label="Save",
-        )
-
-        self.payment_data_form = PaymentDataForm(
-            on_form_submit=self.on_update_payment_info,
-        )
-
-        self._tab_contents = [
-            self._make_tab_content(
-                [
-                    self.user_info_form,
-                ]
-            ),
-            self._make_tab_content(
-                [
-                    self.payment_data_form,
-                ]
-            ),
-            self._make_tab_content(
-                [
-                    self.profile_photo_img,
-                    views.Spacer(sm_space=True),
-                    self.update_photo_btn,
-                ]
-            ),
-        ]
-
-        self._tab_bar = Row(spacing=0)
-        self._rebuild_tab_bar()
-
-        self._tab_content_area = Container(
-            content=self._tab_contents[0],
-            expand=True,
-        )
+        self._contact_body = Container()
+        self._address_body = Container()
+        self._business_body = Container()
+        self._payment_body = Container()
 
         self.expand = True
-        self.spacing = dimens.SPACE_SM
+        self.scroll = ScrollMode.AUTO
+        self.spacing = 0
         self.controls = [
-            views.THeading("Profile", size=fonts.HEADLINE_2_SIZE),
-            self.loading_indicator,
-            Container(
-                border=Border(bottom=BorderSide(1, colors.border)),
-                content=self._tab_bar,
+            views.Spacer(sm_space=True),
+            # ── Header ────────────────────────────────────────
+            Row(
+                controls=[
+                    avatar,
+                    Column(
+                        controls=[self._header_name, self._header_subtitle],
+                        spacing=dimens.SPACE_XXS,
+                        expand=True,
+                    ),
+                    TextButton(
+                        "Change Photo",
+                        on_click=self._on_update_photo_clicked,
+                        style=ButtonStyle(color=colors.accent),
+                    ),
+                ],
+                vertical_alignment=CrossAxisAlignment.CENTER,
+                spacing=dimens.SPACE_LG,
             ),
-            self._tab_content_area,
+            views.Spacer(lg_space=True),
+            self._section_divider(),
+            views.Spacer(lg_space=True),
+            # ── Contact ───────────────────────────────────────
+            self._section_header("Contact", on_edit=self._edit_contact),
+            views.Spacer(sm_space=True),
+            self._contact_body,
+            views.Spacer(lg_space=True),
+            self._section_divider(),
+            views.Spacer(lg_space=True),
+            # ── Address ───────────────────────────────────────
+            self._section_header("Address", on_edit=self._edit_address),
+            views.Spacer(sm_space=True),
+            self._address_body,
+            views.Spacer(lg_space=True),
+            self._section_divider(),
+            views.Spacer(lg_space=True),
+            # ── Business ──────────────────────────────────────
+            self._section_header("Business", on_edit=self._edit_business),
+            views.Spacer(sm_space=True),
+            self._business_body,
+            views.Spacer(lg_space=True),
+            self._section_divider(),
+            views.Spacer(lg_space=True),
+            # ── Payment ───────────────────────────────────────
+            self._section_header("Payment", on_edit=self._edit_payment),
+            views.Spacer(sm_space=True),
+            self._payment_body,
+            views.Spacer(lg_space=True),
         ]
 
     def did_mount(self):
@@ -1026,13 +964,13 @@ class ProfileContent(TView, Column):
             self.show_snack(result.error_msg, True)
         else:
             self.user_profile = result.data
-            self.user_info_form.refresh_user_info(self.user_profile)
-            self.payment_data_form.update_form_data(user=self.user_profile)
-            if self.user_profile.profile_photo_path:
-                self.profile_photo_img.src_base64 = utils.toBase64(
+            has_photo = bool(self.user_profile.profile_photo_path)
+            if has_photo:
+                self._photo_img.src_base64 = utils.toBase64(
                     self.user_profile.profile_photo_path
                 )
-        self.loading_indicator.visible = False
+            self._show_photo(has_photo)
+            self._rebuild_display()
         self.update_self()
 
     def will_unmount(self):
