@@ -5,10 +5,11 @@ and financial goal tracking using only Flet controls (no browser).
 """
 
 import threading
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import flet_charts as fch
 from flet import (
+    AlertDialog,
     Border,
     BorderRadius,
     BorderSide,
@@ -17,6 +18,7 @@ from flet import (
     Container,
     CrossAxisAlignment,
     Icon,
+    IconButton,
     Icons,
     MainAxisAlignment,
     Padding,
@@ -25,14 +27,16 @@ from flet import (
     Row,
     ScrollMode,
     Text,
+    TextButton,
     TextStyle,
 )
 
-from ..core.abstractions import TView, TViewParams
+from ..core.abstractions import DialogHandler, TView, TViewParams
 from ..core import views
 from ..core.utils import fmt_currency
 from ..res import colors, dimens, fonts, res_utils
 from .intent import DashboardIntent
+from ...model import FinancialGoal
 
 
 def _fmt_pct(value) -> str:
@@ -176,6 +180,117 @@ def _section_header(title: str, icon=None) -> Container:
         padding=Padding.only(top=dimens.SPACE_MD, bottom=dimens.SPACE_XS),
         content=Row(spacing=dimens.SPACE_XS, controls=controls),
     )
+
+
+# ── Financial Goal Editor Dialog ──────────────────────────────
+
+
+class FinancialGoalDialog(DialogHandler):
+    """Dialog for creating or editing a financial goal."""
+
+    def __init__(
+        self,
+        dialog_controller,
+        on_save,
+        goal: FinancialGoal = None,
+    ):
+        self._on_save = on_save
+        self._goal = goal
+        is_new = goal is None
+
+        self._title_field = views.TTextField(
+            label="Title",
+            hint="e.g. Yearly Revenue Target",
+            initial_value="" if is_new else goal.title,
+        )
+        self._amount_field = views.TTextField(
+            label="Target Amount",
+            hint="e.g. 80000",
+            keyboard_type="number",
+            initial_value="" if is_new else str(goal.target_amount),
+        )
+
+        initial_date = None if is_new else goal.target_date
+        self._date_selector = views.DateSelector(
+            label="Target Date",
+            initial_date=initial_date,
+        )
+
+        self._error_text = views.TErrorText("", show=False)
+
+        dialog = AlertDialog(
+            bgcolor=colors.bg_surface,
+            title=Text(
+                "New Goal" if is_new else "Edit Goal",
+                size=fonts.HEADLINE_3_SIZE,
+                color=colors.text_primary,
+                weight=fonts.BOLD_FONT,
+            ),
+            content=Container(
+                width=380,
+                content=Column(
+                    tight=True,
+                    spacing=dimens.SPACE_SM,
+                    controls=[
+                        self._title_field,
+                        self._amount_field,
+                        self._date_selector,
+                        self._error_text,
+                    ],
+                ),
+            ),
+            actions=[
+                TextButton(
+                    content=Text("Cancel", size=fonts.BODY_2_SIZE),
+                    on_click=lambda e: self.close_dialog(),
+                ),
+                views.TPrimaryButton(
+                    label="Save",
+                    on_click=self._on_save_clicked,
+                ),
+            ],
+        )
+        super().__init__(dialog=dialog, dialog_controller=dialog_controller)
+
+    def _on_save_clicked(self, e):
+        title = (self._title_field.value or "").strip()
+        amount_str = (self._amount_field.value or "").strip()
+        target_date = self._date_selector.get_date()
+
+        if not title:
+            self._error_text.value = "Title is required."
+            self._error_text.visible = True
+            self._error_text.update()
+            return
+        try:
+            amount = Decimal(amount_str)
+            if amount <= 0:
+                raise ValueError()
+        except (InvalidOperation, ValueError):
+            self._error_text.value = "Enter a valid positive amount."
+            self._error_text.visible = True
+            self._error_text.update()
+            return
+        if not target_date:
+            self._error_text.value = "Target date is required."
+            self._error_text.visible = True
+            self._error_text.update()
+            return
+
+        if self._goal is not None:
+            self._goal.title = title
+            self._goal.target_amount = amount
+            self._goal.target_date = target_date
+            goal = self._goal
+        else:
+            goal = FinancialGoal(
+                title=title,
+                target_amount=amount,
+                target_date=target_date,
+            )
+
+        self.close_dialog()
+        self._on_save(goal)
 
 
 # ── Main Dashboard View ──────────────────────────────────────
@@ -544,16 +659,55 @@ class DashboardView(TView, Column):
 
     # ── Financial goals ───────────────────────────────────────
 
+    def _on_add_goal(self, e=None):
+        self._goal_dialog = FinancialGoalDialog(
+            dialog_controller=self.dialog_controller,
+            on_save=self._on_goal_saved,
+        )
+        self._goal_dialog.open_dialog()
+
+    def _on_edit_goal(self, goal):
+        self._goal_dialog = FinancialGoalDialog(
+            dialog_controller=self.dialog_controller,
+            on_save=self._on_goal_saved,
+            goal=goal,
+        )
+        self._goal_dialog.open_dialog()
+
+    def _on_goal_saved(self, goal: FinancialGoal):
+        result = self.intent.save_financial_goal(goal)
+        if result.was_intent_successful:
+            self.show_snack("Goal saved!", False)
+            self._load_data()
+        else:
+            self.show_snack(result.error_msg, True)
+
+    def _on_delete_goal_clicked(self, goal):
+        self._goal_confirm = views.ConfirmDisplayPopUp(
+            dialog_controller=self.dialog_controller,
+            title="Delete Goal",
+            description=f'Are you sure you want to delete "{goal.title}"?',
+            on_proceed=self._on_delete_goal_confirmed,
+            proceed_button_label="Delete",
+            data_on_confirmed=goal.id,
+        )
+        self._goal_confirm.open_dialog()
+
+    def _on_delete_goal_confirmed(self, goal_id):
+        result = self.intent.delete_financial_goal(goal_id)
+        if result.was_intent_successful:
+            self.show_snack("Goal deleted.", False)
+            self._load_data()
+        else:
+            self.show_snack(result.error_msg, True)
+
     def _load_goals(self):
         self._goals_section.controls.clear()
 
         result = self.intent.get_financial_goals()
-        if not result.was_intent_successful or not result.data:
-            return
-
-        goals = result.data
+        goals = result.data if result.was_intent_successful else []
         if not goals:
-            return
+            goals = []
 
         kpi_result = self.intent.get_kpis()
         ytd_revenue = Decimal(0)
@@ -594,12 +748,35 @@ class DashboardView(TView, Column):
                                         color=colors.text_primary,
                                         expand=True,
                                     ),
-                                    Text(
-                                        status_text,
-                                        size=fonts.BODY_2_SIZE,
-                                        color=colors.success
-                                        if goal.is_reached
-                                        else colors.text_secondary,
+                                    Row(
+                                        spacing=0,
+                                        controls=[
+                                            Text(
+                                                status_text,
+                                                size=fonts.BODY_2_SIZE,
+                                                color=colors.success
+                                                if goal.is_reached
+                                                else colors.text_secondary,
+                                            ),
+                                            IconButton(
+                                                icon=Icons.EDIT_OUTLINED,
+                                                icon_size=dimens.SM_ICON_SIZE,
+                                                icon_color=colors.text_muted,
+                                                tooltip="Edit",
+                                                on_click=lambda e, g=goal: self._on_edit_goal(
+                                                    g
+                                                ),
+                                            ),
+                                            IconButton(
+                                                icon=Icons.DELETE_OUTLINE,
+                                                icon_size=dimens.SM_ICON_SIZE,
+                                                icon_color=colors.text_muted,
+                                                tooltip="Delete",
+                                                on_click=lambda e, g=goal: self._on_delete_goal_clicked(
+                                                    g
+                                                ),
+                                            ),
+                                        ],
                                     ),
                                 ],
                             ),
@@ -637,12 +814,59 @@ class DashboardView(TView, Column):
                 )
             )
 
+        add_btn = IconButton(
+            icon=Icons.ADD_CIRCLE_OUTLINE,
+            icon_size=dimens.MD_ICON_SIZE,
+            icon_color=colors.accent,
+            tooltip="Add Goal",
+            on_click=self._on_add_goal,
+        )
+
+        header = Container(
+            padding=Padding.only(top=dimens.SPACE_MD, bottom=dimens.SPACE_XS),
+            content=Row(
+                alignment=MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=CrossAxisAlignment.CENTER,
+                controls=[
+                    Row(
+                        spacing=dimens.SPACE_XS,
+                        controls=[
+                            Icon(
+                                Icons.FLAG_OUTLINED,
+                                size=dimens.MD_ICON_SIZE,
+                                color=colors.text_secondary,
+                            ),
+                            Text(
+                                "Financial Goals",
+                                size=fonts.HEADLINE_4_SIZE,
+                                color=colors.text_primary,
+                                weight=fonts.BOLD_FONT,
+                            ),
+                        ],
+                    ),
+                    add_btn,
+                ],
+            ),
+        )
+
+        body_controls = (
+            goal_rows
+            if goal_rows
+            else [
+                Text(
+                    "No goals yet. Click + to add one.",
+                    size=fonts.BODY_2_SIZE,
+                    color=colors.text_muted,
+                )
+            ]
+        )
+
         self._goals_section.controls = [
-            _section_header("Financial Goals", Icons.FLAG_OUTLINED),
+            header,
             Container(
                 bgcolor=colors.bg_surface,
                 border_radius=dimens.RADIUS_LG,
                 padding=Padding.all(dimens.SPACE_STD),
-                content=Column(spacing=dimens.SPACE_SM, controls=goal_rows),
+                content=Column(spacing=dimens.SPACE_SM, controls=body_controls),
             ),
         ]
