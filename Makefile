@@ -84,6 +84,9 @@ dist: clean ## builds source and wheel package
 pack: clean-build ## build the app bundle with flet pack
 	uv run python scripts/pack_app.py
 
+pack-electron: clean-build ## build the Electron app bundle (PyInstaller + electron-builder)
+	uv run python scripts/pack_electron.py
+
 test-bundle: ## smoke-test the packaged app bundle (build first with `make pack`)
 	uv run python scripts/test_app_bundle.py
 

@@ -28,10 +28,10 @@ share/python-wheels/
 MANIFEST
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
+# Allow tuttle-rpc.spec (un-ignore it)
 *.spec
+!tuttle-rpc.spec
 
 # Installer logs
 pip-log.txt
@@ -148,3 +148,9 @@ assets/uploads/*
 # Swift Package Manager
 TuttleMac/.build/
 TuttleMac/.swiftpm/
+
+# Electron
+tuttle-electron/node_modules/
+tuttle-electron/dist/
+tuttle-electron/dist-electron/
+tuttle-electron/release/
