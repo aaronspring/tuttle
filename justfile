@@ -29,15 +29,43 @@ clean-app:
     rm -rf "{{electron}}/release"
 
 # Package the Electron .app (requires build-sidecar + build-renderer first)
-pack:
-    cd {{electron}} && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --dir
+pack target="dir":
+    cd {{electron}} && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac {{target}}
     @echo "Ad-hoc signing all binaries…"
     find "{{app}}" -type f \( -name '*.dylib' -o -name '*.so' -o -perm +111 \) -exec codesign --force --sign - {} \; 2>/dev/null || true
     codesign --force --deep --sign - "{{app}}"
 
-# Full build: sidecar → renderer → .app
-build: clean-app build-sidecar build-renderer pack
-    @echo "✓ {{app}}"
+# Full build: sidecar → renderer → package (pass "dmg" for .dmg)
+build target="dir": clean-app build-sidecar build-renderer (pack target)
+    @echo "✓ {{electron}}/release/"
+
+# Create a beta .zip with an install script that strips quarantine
+beta: (build "dir")
+    #!/usr/bin/env bash
+    set -euo pipefail
+    staging="{{electron}}/release/beta"
+    rm -rf "$staging"
+    mkdir -p "$staging"
+    cp -R "{{app}}" "$staging/"
+    cat > "$staging/Install Tuttle.command" << 'SCRIPT'
+    #!/bin/bash
+    set -e
+    cd "$(dirname "$0")"
+    dest="/Applications/Tuttle.app"
+    [ -d "$dest" ] && rm -rf "$dest"
+    cp -R "Tuttle.app" "$dest"
+    xattr -cr "$dest"
+    echo ""
+    echo "✓ Tuttle installed to /Applications"
+    echo "  You can now open it from Launchpad or Spotlight."
+    echo ""
+    read -n1 -rsp "Press any key to close…"
+    SCRIPT
+    chmod +x "$staging/Install Tuttle.command"
+    cd "{{electron}}/release"
+    zip -ry "Tuttle-beta.zip" beta/
+    rm -rf "$staging"
+    echo "✓ {{electron}}/release/Tuttle-beta.zip"
 
 # ── Run ─────────────────────────────────────────────────────────────────────
 
