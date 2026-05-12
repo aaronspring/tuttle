@@ -88,63 +88,81 @@ export function SettingsView() {
         {/* Provider */}
         <div>
           <label className="block text-xs text-tertiary mb-1">Provider</label>
-          <div className="flex gap-2">
-            <ProviderButton
-              label="Ollama"
-              active={config.provider === "ollama"}
-              onClick={() => setConfig((c) => ({ ...c, provider: "ollama" }))}
-            />
-            <ProviderButton
-              label="Anthropic"
-              active={config.provider === "anthropic"}
-              onClick={() => setConfig((c) => ({ ...c, provider: "anthropic" }))}
-              disabled
-              hint="Coming soon"
-            />
-          </div>
+          <select
+            value={config.provider}
+            onChange={(e) => setConfig((c) => ({ ...c, provider: e.target.value }))}
+            className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors"
+          >
+            <option value="ollama">Ollama</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
         </div>
 
-        {/* Base URL */}
-        <div>
-          <label className="block text-xs text-tertiary mb-1">Ollama URL</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={config.base_url}
-              onChange={(e) => setConfig((c) => ({ ...c, base_url: e.target.value }))}
-              placeholder="http://localhost:11434"
-              className="flex-1 px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors placeholder:text-muted"
-            />
-            <button
-              onClick={() => fetchModels()}
-              disabled={fetchingModels || !config.base_url}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium bg-bg-card text-secondary hover:text-primary border border-border-subtle transition-colors disabled:opacity-40"
-              title="Fetch available models"
-            >
-              <RefreshCw size={14} className={fetchingModels ? "animate-spin" : ""} />
-              {fetchingModels ? "Fetching…" : "Fetch Models"}
-            </button>
+        {config.provider === "ollama" && (
+          <div>
+            <label className="block text-xs text-tertiary mb-1">Ollama URL</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={config.base_url}
+                onChange={(e) => setConfig((c) => ({ ...c, base_url: e.target.value }))}
+                placeholder="http://localhost:11434"
+                className="flex-1 px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors placeholder:text-muted"
+              />
+              <button
+                onClick={() => fetchModels()}
+                disabled={fetchingModels || !config.base_url}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium bg-bg-card text-secondary hover:text-primary border border-border-subtle transition-colors disabled:opacity-40"
+                title="Fetch available models"
+              >
+                <RefreshCw size={14} className={fetchingModels ? "animate-spin" : ""} />
+                {fetchingModels ? "Fetching…" : "Fetch Models"}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {config.provider === "anthropic" && (
+          <div>
+            <label className="block text-xs text-tertiary mb-1">API Key</label>
+            <input
+              type="password"
+              value={config.api_key}
+              onChange={(e) => setConfig((c) => ({ ...c, api_key: e.target.value }))}
+              placeholder="sk-ant-…"
+              className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors placeholder:text-muted"
+            />
+          </div>
+        )}
 
         {/* Model Selection */}
         <div>
           <label className="block text-xs text-tertiary mb-1">Model</label>
-          {models.length > 0 ? (
-            <select
+          {config.provider === "ollama" ? (
+            models.length > 0 ? (
+              <select
+                value={config.model}
+                onChange={(e) => setConfig((c) => ({ ...c, model: e.target.value }))}
+                className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors"
+              >
+                <option value="">Select a model…</option>
+                {models.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="px-3 py-2 rounded-md text-sm bg-bg-card text-muted border border-border-subtle">
+                {fetchingModels ? "Fetching models…" : "No models available. Click \"Fetch Models\" to connect."}
+              </div>
+            )
+          ) : (
+            <input
+              type="text"
               value={config.model}
               onChange={(e) => setConfig((c) => ({ ...c, model: e.target.value }))}
-              className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors"
-            >
-              <option value="">Select a model…</option>
-              {models.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          ) : (
-            <div className="px-3 py-2 rounded-md text-sm bg-bg-card text-muted border border-border-subtle">
-              {fetchingModels ? "Fetching models…" : "No models available. Click \"Fetch Models\" to connect."}
-            </div>
+              placeholder="claude-sonnet-4-20250514"
+              className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors placeholder:text-muted"
+            />
           )}
         </div>
 
@@ -181,23 +199,5 @@ export function SettingsView() {
         </button>
       </section>
     </div>
-  );
-}
-
-function ProviderButton({ label, active, onClick, disabled, hint }: {
-  label: string; active: boolean; onClick: () => void; disabled?: boolean; hint?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors
-        ${active ? "bg-accent/10 text-accent border-accent/30" : "bg-bg-card text-secondary border-border-subtle hover:text-primary"}
-        ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-      title={hint}
-    >
-      {label}
-      {hint && <span className="ml-1.5 text-xs text-muted">({hint})</span>}
-    </button>
   );
 }
