@@ -199,14 +199,32 @@ class DialogHandler(ABC):
             self.close_dialog()
 
 
+# ---------------------------------------------------------------------------
+# Active per-user database path (module-level state)
+# ---------------------------------------------------------------------------
+
+_active_db_path: Path = Path.home() / ".tuttle" / "tuttle.db"
+
+
+def set_active_db(path: Path) -> None:
+    """Switch all new data-source instances to use *path* as their SQLite DB."""
+    global _active_db_path
+    _active_db_path = path
+    logger.info(f"Active user DB set to: {path}")
+
+
+def get_active_db() -> Path:
+    """Return the path to the currently active per-user database."""
+    return _active_db_path
+
+
 class SQLModelDataSourceMixin:
     """Implements common methods for data sources that interact with SQLModel"""
 
     def __init__(
         self,
     ):
-        db_path = Path.home() / ".tuttle" / "tuttle.db"
-        db_path = f"sqlite:///{db_path}"
+        db_path = f"sqlite:///{_active_db_path}"
         logger.debug(f"Creating {self.__class__.__name__} with db_path: {db_path}")
         self.db_engine = sqlmodel.create_engine(
             db_path,

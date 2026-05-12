@@ -34,12 +34,72 @@ from tuttle.model import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Curated heating-repair domain data
+# ---------------------------------------------------------------------------
+
+_HEATING_CLIENTS = [
+    ("Warmwasser Hausverwaltung GmbH", "Property management"),
+    ("Centralheating AG", "Heating systems supplier"),
+    ("Altbau Wohnungsbau e.G.", "Housing cooperative"),
+    ("Stadtwerke Metropolis", "Municipal utilities"),
+]
+
+_HEATING_CONTRACTS = [
+    "Annual heating maintenance",
+    "Boiler service agreement",
+    "Emergency repair retainer",
+    "Heating system modernisation",
+]
+
+_HEATING_PROJECTS = [
+    (
+        "Boiler replacement Marienstr. 12",
+        "Replace ageing gas boiler with modern condensing unit",
+    ),
+    (
+        "Annual inspection Q1",
+        "Scheduled safety and efficiency inspection for all units",
+    ),
+    (
+        "Emergency pipe repair Nordblock",
+        "Fix burst heating pipe in basement utility room",
+    ),
+    (
+        "Radiator upgrade Westflügel",
+        "Swap cast-iron radiators for energy-efficient panel radiators",
+    ),
+]
+
+_HEATING_TASKS = [
+    "Thermostat calibration",
+    "Radiator bleeding",
+    "Boiler diagnostics",
+    "Pump pressure test",
+    "Flue gas analysis",
+    "Pipe insulation check",
+    "Expansion vessel service",
+    "Control panel firmware update",
+    "Heat exchanger cleaning",
+    "Safety valve inspection",
+]
+
+_HEATING_INVOICE_ITEMS = [
+    ("Labor: boiler service", "hours"),
+    ("Replacement valve DN20", "hours"),
+    ("Thermostat head Danfoss RA-N", "hours"),
+    ("Circulation pump Grundfos UPS", "hours"),
+    ("Pipe insulation material", "hours"),
+    ("Flue gas measurement", "hours"),
+    ("Emergency callout surcharge", "hours"),
+    ("Travel to site", "hours"),
+]
+
+
 def create_fake_user(
     fake: faker.Faker,
 ) -> User:
-    """
-    Create a fake user.
-    """
+    """Create a fake user."""
     user = User(
         name=fake.name(),
         email=fake.email(),
@@ -52,12 +112,10 @@ def create_fake_user(
 def create_fake_contact(
     fake: faker.Faker,
 ) -> Contact:
-
     split_address_lines = fake.address().splitlines()
     street_line = split_address_lines[0]
     city_line = split_address_lines[1]
     try:
-        # TODO: This has a German bias
         street = street_line.split(" ", 1)[0]
         number = street_line.split(" ", 1)[1]
         city = city_line.split(" ")[1]
@@ -86,6 +144,25 @@ def create_fake_contact(
     return contact
 
 
+def create_heating_contact(fake: faker.Faker, company_name: str) -> Contact:
+    """Create a contact for a heating-industry client."""
+    a = Address(
+        street=fake.street_name(),
+        number=str(fake.random_int(1, 200)),
+        city=fake.city(),
+        postal_code=fake.postcode(),
+        country="Germany",
+    )
+    first_name, last_name = fake.name().split(" ", 1)
+    return Contact(
+        first_name=first_name,
+        last_name=last_name,
+        email=fake.email(),
+        company=company_name,
+        address=a,
+    )
+
+
 def create_fake_client(
     fake: faker.Faker,
     invoicing_contact: Optional[Contact] = None,
@@ -104,16 +181,14 @@ def create_fake_contract(
     fake: faker.Faker,
     client: Optional[Client] = None,
 ) -> Contract:
-    """
-    Create a fake contract for the given client.
-    """
+    """Create a fake contract for the given client."""
     if client is None:
         client = create_fake_client(fake)
     unit = random.choice(list(TimeUnit))
     if unit == TimeUnit.day:
-        rate = fake.random_int(200, 1000)  # realistic distribution for day rates
+        rate = fake.random_int(200, 1000)
     elif unit == TimeUnit.hour:
-        rate = fake.random_int(10, 100)  # realistic distribution for hourly rates
+        rate = fake.random_int(10, 100)
     else:
         rate = fake.random_int(1, 1000)
     return Contract(
@@ -122,7 +197,7 @@ def create_fake_contract(
         signature_date=fake.date_this_year(before_today=True),
         start_date=fake.date_this_year(after_today=True),
         rate=rate,
-        currency="EUR",  # TODO: Use actual currency
+        currency="EUR",
         VAT_rate=Decimal(round(random.uniform(0.05, 0.2), 2)),
         unit=unit,
         units_per_workday=random.randint(1, 12),
@@ -181,28 +256,26 @@ def create_fake_timesheet(
     if project is None:
         project = create_fake_project(fake)
     timesheet = Timesheet(
-        title=fake.bs().replace("/", "-"),
-        comment=fake.paragraph(nb_sentences=2),
+        title=f"Timesheet – {project.title}",
+        comment=f"Work log for {project.title}",
         date=datetime.date.today(),
         period_start=datetime.date.today() - datetime.timedelta(days=30),
         period_end=datetime.date.today(),
         project=project,
     )
-    number_of_items = fake.random_int(min=1, max=5)
+    number_of_items = fake.random_int(min=2, max=5)
     for _ in range(number_of_items):
-        unit = fake.random_element(elements=("hours", "days"))
-        if unit == "hours":
-            unit_price = abs(round(numpy.random.normal(50, 20), 2))
-        elif unit == "days":
-            unit_price = abs(round(numpy.random.normal(400, 200), 2))
+        task = random.choice(_HEATING_TASKS)
+        hours = fake.random_int(min=1, max=8)
+        begin = fake.date_time_this_year(before_now=True, after_now=False)
         time_tracking_item = TimeTrackingItem(
             timesheet=timesheet,
-            begin=fake.date_time_this_year(before_now=True, after_now=False),
-            end=fake.date_time_this_year(before_now=True, after_now=False),
-            duration=datetime.timedelta(hours=fake.random_int(min=1, max=8)),
-            title=f"{fake.bs()} for #{project.tag}",
+            begin=begin,
+            end=begin + datetime.timedelta(hours=hours),
+            duration=datetime.timedelta(hours=hours),
+            title=f"{task} {project.tag}",
             tag=project.tag,
-            description=fake.paragraph(nb_sentences=2),
+            description=task,
         )
         timesheet.items.append(time_tracking_item)
     return timesheet
@@ -248,25 +321,23 @@ def create_fake_invoice(
         cancelled=cancelled,
         contract=project.contract,
         project=project,
-        rendered=fake.pybool(),
+        rendered=render,
     )
-    number_of_items = fake.random_int(min=1, max=5)
-    for _ in range(number_of_items):
-        unit = fake.random_element(elements=("hours", "days"))
-        unit_price = 0
-        if unit == "hours":
-            unit_price = abs(round(numpy.random.normal(50, 20), 2))
-        elif unit == "days":
-            unit_price = abs(round(numpy.random.normal(500, 200), 2))
-        vat_rate = round(numpy.random.uniform(0.05, 0.25), 2)
+    number_of_items = fake.random_int(min=1, max=4)
+    used_items = random.sample(
+        _HEATING_INVOICE_ITEMS,
+        k=min(number_of_items, len(_HEATING_INVOICE_ITEMS)),
+    )
+    for desc, unit in used_items:
+        unit_price = abs(round(numpy.random.normal(75, 20), 2))
         invoice_item = InvoiceItem(
-            start_date=fake.date_this_decade(),
-            end_date=fake.date_this_decade(),
-            quantity=fake.random_int(min=1, max=10),
+            start_date=fake.date_this_year(before_today=True),
+            end_date=fake.date_this_year(before_today=True),
+            quantity=fake.random_int(min=1, max=8),
             unit=unit,
             unit_price=Decimal(unit_price),
-            description=fake.sentence(),
-            VAT_rate=Decimal(vat_rate),
+            description=desc,
+            VAT_rate=Decimal("0.19"),
             invoice=invoice,
         )
 
@@ -305,39 +376,70 @@ def create_fake_invoice(
     return invoice
 
 
-def create_fake_data(
+def create_heating_data(
     user: User,
-    n: int = 10,
+    n: int = 4,
 ):
-    locales = [
-        "de_DE",
-        "de_CH",
-        "de_AT",
-        "en_US",
-        "en_GB",
-        "es_ES",
-        "fr_FR",
-        "it_IT",
-        "sv_SE",
-        "cz_CZ",
-        "nl_NL",
-        "pt_BR",
-        "tr_TR",
-    ]
-    fake = faker.Faker(locale=locales)
+    """Create heating-repair themed demo data for Harry Tuttle."""
+    fake = faker.Faker(locale=["de_DE", "en_US"])
 
-    contacts = [create_fake_contact(fake) for _ in range(n)]
-    clients = [
-        create_fake_client(fake, invoicing_contact=contact) for contact in contacts
-    ]
-    contracts = [create_fake_contract(fake, client=client) for client in clients]
-    projects = [create_fake_project(fake, contract=contract) for contract in contracts]
+    n = min(n, len(_HEATING_CLIENTS))
+    contacts = []
+    clients = []
+    for i in range(n):
+        name, _desc = _HEATING_CLIENTS[i]
+        contact = create_heating_contact(fake, company_name=name)
+        contacts.append(contact)
+        client = Client(name=name, invoicing_contact=contact)
+        clients.append(client)
+
+    contracts = []
+    for i, client in enumerate(clients):
+        title = _HEATING_CONTRACTS[i % len(_HEATING_CONTRACTS)]
+        rate = random.choice([65, 72, 80, 85, 95])
+        contract = Contract(
+            title=f"{title} – {client.name}",
+            client=client,
+            signature_date=fake.date_between(start_date="-1y", end_date="-3M"),
+            start_date=fake.date_between(start_date="-3M", end_date="today"),
+            rate=rate,
+            currency="EUR",
+            VAT_rate=Decimal("0.19"),
+            unit=TimeUnit.hour,
+            units_per_workday=8,
+            volume=random.randint(100, 400),
+            term_of_payment=14,
+            billing_cycle=Cycle.monthly,
+        )
+        contracts.append(contract)
+
+    projects = []
+    for i, contract in enumerate(contracts):
+        title, description = _HEATING_PROJECTS[i % len(_HEATING_PROJECTS)]
+        tag = f"#{''.join(title.split()[:2]).lower()}"
+        project = Project(
+            title=title,
+            tag=tag,
+            description=description,
+            is_completed=False,
+            start_date=contract.start_date,
+            end_date=contract.start_date + datetime.timedelta(days=90),
+            contract=contract,
+        )
+        projects.append(project)
 
     invoices = [
         create_fake_invoice(fake, project=project, user=user) for project in projects
     ]
-
     return projects, invoices
+
+
+def create_fake_data(
+    user: User,
+    n: int = 10,
+):
+    """Legacy entry point — delegates to heating-themed generator."""
+    return create_heating_data(user, n=n)
 
 
 def create_historical_invoices(
@@ -361,7 +463,7 @@ def create_historical_invoices(
                 fake,
                 project=project,
                 user=user,
-                render=False,
+                render=True,
                 invoice_date=inv_date,
                 paid=True,
                 sent=True,
@@ -499,14 +601,14 @@ def install_demo_data(
         today = datetime.date.today()
         goals = [
             FinancialGoal(
-                title="Yearly Revenue Target",
-                target_amount=Decimal("80000.00"),
-                target_date=today.replace(month=12, day=31),
+                title="Service van replacement fund",
+                target_amount=Decimal("35000.00"),
+                target_date=today.replace(year=today.year + 1, month=3, day=31),
             ),
             FinancialGoal(
-                title="Emergency Fund",
-                target_amount=Decimal("15000.00"),
-                target_date=today.replace(year=today.year + 1, month=6, day=30),
+                title="Workshop tool upgrade",
+                target_amount=Decimal("8000.00"),
+                target_date=today.replace(month=12, day=31),
             ),
         ]
         for goal in goals:

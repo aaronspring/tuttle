@@ -1,5 +1,6 @@
 {
   "name": "tuttle-electron",
+  "productName": "Tuttle",
   "version": "0.1.0",
   "description": "Cross-platform Electron UI for Tuttle",
   "private": true,

@@ -179,15 +179,72 @@ def _patch_scalars_from_rpc(instance: Any, updates: Dict[str, Any], skip: set) -
 # ---------------------------------------------------------------------------
 
 
-def _ensure_db():
-    """Ensure the database exists and migrations are up to date."""
-    from tuttle.app.core.database_storage_impl import DatabaseStorageImpl
+def _get_app_db():
+    from tuttle.app_db import AppDatabase
 
-    db = DatabaseStorageImpl(
-        store_demo_timetracking_dataframe=lambda _: None,
-        debug_mode=False,
+    return AppDatabase()
+
+
+def _ensure_user_db(db_path: Path):
+    """Ensure a per-user database exists and migrations are applied."""
+    from tuttle.migrations.run import run_migrations
+
+    run_migrations(f"sqlite:///{db_path}")
+
+
+def _switch_to_user_db(db_file: str):
+    """Switch the active per-user database and reset all intent singletons."""
+    from tuttle.app.core.abstractions import set_active_db
+
+    app_db = _get_app_db()
+    db_path = app_db.get_user_db_path(db_file)
+    _ensure_user_db(db_path)
+    set_active_db(db_path)
+    app_db.set_active(db_file)
+    _reset_intents()
+    logger.info(f"Switched to user DB: {db_file}")
+
+
+def _ensure_demo_user():
+    """Ensure the Harry Tuttle demo user is registered (does not install data)."""
+    from tuttle.demo import install_demo_data
+    from tuttle.migrations.run import run_migrations
+
+    app_db = _get_app_db()
+    if app_db.get_user_by_db_file("harry-tuttle.db"):
+        return
+    reg = app_db.add_user(
+        name="Harry Tuttle",
+        subtitle="Heating Engineer",
+        is_demo=True,
+        db_file="harry-tuttle.db",
     )
-    db.ensure_database()
+    db_path = app_db.get_user_db_path(reg.db_file)
+    if db_path.exists():
+        db_path.unlink()
+    run_migrations(f"sqlite:///{db_path}")
+    install_demo_data(
+        n_projects=4,
+        db_path=str(db_path),
+        on_cache_timetracking_dataframe=lambda _: None,
+    )
+    logger.info("Demo user Harry Tuttle created with heating-repair data")
+
+
+def _ensure_db():
+    """Ensure app.db + demo user + last-active user DB exist and are migrated."""
+    app_db = _get_app_db()
+    app_db.ensure()
+    app_db.migrate_llm_config_from_json()
+    _ensure_demo_user()
+
+    last = app_db.get_last_active()
+    if last:
+        _switch_to_user_db(last.db_file)
+    else:
+        users = app_db.list_users()
+        if users:
+            _switch_to_user_db(users[0].db_file)
 
 
 def _dispatch(method: str, params: Dict[str, Any]) -> Any:
@@ -694,23 +751,118 @@ def _dispatch(method: str, params: Dict[str, Any]) -> Any:
         items = parse_document(file_base64, file_name, entity_type, config)
         return {"ok": True, "data": items, "error": None}
 
-    # -- Demo ---------------------------------------------------------------
-    if method == "demo.install":
-        from tuttle.demo import install_demo_data
-        from tuttle.migrations.run import run_migrations
+    # -- Users --------------------------------------------------------------
+    if method == "users.list":
+        app_db = _get_app_db()
+        users = app_db.list_users()
+        return {
+            "ok": True,
+            "data": [_serialise(u) for u in users],
+            "error": None,
+        }
 
-        db_path = Path.home() / ".tuttle" / "tuttle.db"
-        if db_path.exists():
-            db_path.unlink()
+    if method == "users.create":
+        from tuttle.model import User, Address, BankAccount
+        from tuttle.migrations.run import run_migrations
+        from sqlmodel import Session as SqlSession, create_engine as sql_create_engine
+
+        app_db = _get_app_db()
+        name = params["name"]
+        subtitle = params.get("subtitle", "")
+        reg = app_db.add_user(name=name, subtitle=subtitle)
+        db_path = app_db.get_user_db_path(reg.db_file)
         run_migrations(f"sqlite:///{db_path}")
-        n = params.get("n_projects", 4)
-        install_demo_data(
-            n_projects=n,
-            db_path=str(db_path),
-            on_cache_timetracking_dataframe=lambda _: None,
-        )
-        _reset_intents()
+        engine = sql_create_engine(f"sqlite:///{db_path}")
+        with SqlSession(engine) as s:
+            address = Address(
+                street=params.get("street", ""),
+                number=params.get("street_num", ""),
+                postal_code=params.get("postal_code", ""),
+                city=params.get("city", ""),
+                country=params.get("country", ""),
+            )
+            user = User(
+                name=name,
+                subtitle=subtitle,
+                email=params.get("email", ""),
+                phone_number=params.get("phone", ""),
+                website=params.get("website", ""),
+                operating_country=params.get("operating_country", "Germany"),
+                VAT_number=params.get("vat_number", ""),
+                address=address,
+            )
+            s.add(user)
+            s.commit()
+        engine.dispose()
+        _switch_to_user_db(reg.db_file)
+        return {"ok": True, "data": _serialise(reg), "error": None}
+
+    if method == "users.switch":
+        db_file = params["db_file"]
+        _switch_to_user_db(db_file)
         return {"ok": True, "data": None, "error": None}
+
+    if method == "users.delete":
+        db_file = params["db_file"]
+        app_db = _get_app_db()
+        removed = app_db.remove_user(db_file)
+        if removed:
+            _reset_intents()
+        return {"ok": True, "data": removed, "error": None}
+
+    if method == "users.get_active":
+        from tuttle.app.core.abstractions import get_active_db
+
+        app_db = _get_app_db()
+        active_path = get_active_db()
+        active_file = active_path.name
+        reg = app_db.get_user_by_db_file(active_file)
+        if not reg:
+            return {"ok": True, "data": None, "error": None}
+        from tuttle.app.auth.data_source import UserDataSource
+
+        try:
+            ds = UserDataSource()
+            profile = ds.get_user()
+            data = _serialise(reg)
+            if profile:
+                data["profile"] = _serialise(profile)
+                if profile.address:
+                    data["profile"]["address"] = _serialise(profile.address)
+            return {"ok": True, "data": data, "error": None}
+        except Exception:
+            return {"ok": True, "data": _serialise(reg), "error": None}
+
+    if method == "users.ensure_demo":
+        _ensure_demo_user()
+        app_db = _get_app_db()
+        reg = app_db.get_user_by_db_file("harry-tuttle.db")
+        return {"ok": True, "data": _serialise(reg) if reg else None, "error": None}
+
+    # -- Settings -----------------------------------------------------------
+    if method == "settings.get":
+        app_db = _get_app_db()
+        val = app_db.get_setting(params["key"])
+        return {"ok": True, "data": val, "error": None}
+
+    if method == "settings.set":
+        app_db = _get_app_db()
+        app_db.set_setting(params["key"], params["value"])
+        return {"ok": True, "data": None, "error": None}
+
+    if method == "settings.get_all":
+        app_db = _get_app_db()
+        prefix = params.get("prefix")
+        data = app_db.get_all_settings(prefix=prefix)
+        return {"ok": True, "data": data, "error": None}
+
+    # -- Demo (legacy, now wraps users.ensure_demo) -------------------------
+    if method == "demo.install":
+        result = _dispatch("users.ensure_demo", {})
+        if result.get("ok") and result.get("data"):
+            db_file = result["data"].get("db_file", "harry-tuttle.db")
+            _switch_to_user_db(db_file)
+        return result
 
     # -- DB lifecycle -------------------------------------------------------
     if method == "db.ensure":
@@ -718,8 +870,9 @@ def _dispatch(method: str, params: Dict[str, Any]) -> Any:
         return {"ok": True, "data": None, "error": None}
 
     if method == "db.exists":
-        db_path = Path.home() / ".tuttle" / "tuttle.db"
-        return {"ok": True, "data": db_path.exists(), "error": None}
+        from tuttle.app.core.abstractions import get_active_db
+
+        return {"ok": True, "data": get_active_db().exists(), "error": None}
 
     raise ValueError(f"Unknown method: {method}")
 

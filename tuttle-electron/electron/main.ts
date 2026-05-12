@@ -12,6 +12,7 @@ let pythonBridge: PythonBridge | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
+    title: "Tuttle",
     width: 1280,
     height: 820,
     minWidth: 900,
@@ -38,6 +39,8 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+app.name = "Tuttle";
 
 app.whenReady().then(async () => {
   const isPackaged = app.isPackaged;

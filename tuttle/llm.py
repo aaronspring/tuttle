@@ -6,7 +6,6 @@ structured entity extraction from documents using llama_index.
 
 import base64
 import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -17,8 +16,6 @@ from loguru import logger
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
-CONFIG_PATH = Path.home() / ".tuttle" / "llm_config.json"
 
 
 class LLMConfig(BaseModel):
@@ -40,20 +37,20 @@ class LLMConfig(BaseModel):
 
 
 def load_config() -> LLMConfig:
-    """Load LLM config from disk, or return defaults."""
-    if CONFIG_PATH.exists():
-        try:
-            data = json.loads(CONFIG_PATH.read_text())
-            return LLMConfig(**data)
-        except Exception as e:
-            logger.warning(f"Failed to load LLM config: {e}")
-    return LLMConfig()
+    """Load LLM config from the centralized app.db."""
+    from tuttle.app_db import AppDatabase
+
+    db = AppDatabase()
+    data = db.get_llm_config()
+    return LLMConfig(**data)
 
 
 def save_config(config: LLMConfig) -> LLMConfig:
-    """Persist LLM config to disk."""
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(config.model_dump_json(indent=2))
+    """Persist LLM config to the centralized app.db."""
+    from tuttle.app_db import AppDatabase
+
+    db = AppDatabase()
+    db.save_llm_config(config.model_dump())
     return config
 
 
