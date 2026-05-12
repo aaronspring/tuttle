@@ -29,13 +29,16 @@ class UsersIntent:
     def _switch_to_user_db(self, db_file: str):
         """Switch the active per-user database and flush intent caches."""
         db_path = self._app_db.get_user_db_path(db_file)
-        self._ensure_user_db(db_path)
+        reg = self._app_db.get_user_by_db_file(db_file)
+        is_demo = reg and reg.is_demo if reg else False
+        if not is_demo:
+            self._ensure_user_db(db_path)
         set_active_db(db_path)
         self._app_db.set_active(db_file)
         reset_all()
         logger.info(f"Switched to user DB: {db_file}")
 
-        if db_file == "harry-tuttle.db":
+        if is_demo:
             self._ensure_demo_timetracking(db_path)
 
     def _ensure_demo_timetracking(self, db_path: Path = None):
@@ -227,7 +230,6 @@ class UsersIntent:
         db_path = self._app_db.get_user_db_path(reg.db_file)
         if db_path.exists():
             db_path.unlink()
-        run_migrations(f"sqlite:///{db_path}")
 
         def _cache_demo_timetracking(df):
             ds = TimeTrackingDataFrameSource()

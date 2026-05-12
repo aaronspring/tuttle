@@ -104,7 +104,7 @@ class TestContact:
 class TestClient:
     """Tests for the Client model."""
 
-    def test_valid_instantiation(self):
+    def test_valid_instantiation_with_contact(self):
         invoicing_contact = Contact(
             first_name="Sam",
             last_name="Lowry",
@@ -125,6 +125,52 @@ class TestClient:
             retrieved = session.exec(select(Client)).first()
             assert retrieved is not None
             assert retrieved.name == "Ministry of Information"
+            assert retrieved.invoicing_contact is not None
+
+    def test_valid_instantiation_with_address(self):
+        addr = Address(
+            street="Main Street",
+            number="42",
+            city="Somewhere",
+            postal_code="55555",
+            country="Brazil",
+        )
+        client = Client(name="Central Services", address=addr)
+        db_engine = create_engine("sqlite:///")
+        SQLModel.metadata.create_all(db_engine)
+        with Session(db_engine) as session:
+            session.add(client)
+            session.commit()
+        with Session(db_engine) as session:
+            retrieved = session.exec(select(Client)).first()
+            assert retrieved is not None
+            assert retrieved.name == "Central Services"
+            assert retrieved.invoicing_contact is None
+            assert retrieved.address is not None
+
+    def test_invoice_recipient_properties(self):
+        addr = Address(
+            street="A St", number="1", city="C", postal_code="0", country="X"
+        )
+        contact_addr = Address(
+            street="B St", number="2", city="D", postal_code="1", country="Y"
+        )
+        contact = Contact(
+            first_name="Sam",
+            last_name="Lowry",
+            email="sam@example.com",
+            address=contact_addr,
+        )
+
+        client_no_contact = Client(name="Acme Corp", address=addr)
+        assert client_no_contact.invoice_recipient_name == "Acme Corp"
+        assert client_no_contact.invoice_recipient_address is addr
+
+        client_with_contact = Client(
+            name="Acme Corp", address=addr, invoicing_contact=contact
+        )
+        assert client_with_contact.invoice_recipient_name == "Sam Lowry"
+        assert client_with_contact.invoice_recipient_address is contact_addr
 
     def test_missing_name(self):
         """Test that a ValidationError is raised when the name is missing."""

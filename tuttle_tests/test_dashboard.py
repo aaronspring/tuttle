@@ -54,7 +54,17 @@ def contact():
 
 @pytest.fixture
 def client(contact):
-    return Client(name="Test Corp", invoicing_contact=contact)
+    return Client(
+        name="Test Corp",
+        invoicing_contact=contact,
+        address=Address(
+            street="Test Street",
+            number="1",
+            city="Berlin",
+            postal_code="12345",
+            country="Germany",
+        ),
+    )
 
 
 @pytest.fixture

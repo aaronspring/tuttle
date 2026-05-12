@@ -300,8 +300,19 @@ class InvoicingIntent(Intent):
         try:
             user = self._user_data_source.get_user()
             # open email client with message pre-filled
+            client = invoice.contract.client
+            contact = client.invoicing_contact if client else None
+            greeting = contact.name if contact and contact.name else client.name
+            recipient = contact.email if contact and contact.email else None
+
+            if not recipient:
+                return IntentResult(
+                    was_intent_successful=False,
+                    error_msg="No contact email available for this client.",
+                )
+
             email_body = f"""
-            Dear {invoice.contract.client.invoicing_contact.name},
+            Dear {greeting},
 
             Please find attached the invoice for {invoice.project.title}.
 
@@ -312,7 +323,7 @@ class InvoicingIntent(Intent):
             """
             email_body = textwrap.dedent(email_body)
             mail.compose_email(
-                to=invoice.contract.client.invoicing_contact.email,
+                to=recipient,
                 subject=f"Invoice {invoice.number}",
                 body=email_body,
             )

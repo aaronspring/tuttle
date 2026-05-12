@@ -37,8 +37,13 @@
   <table class="invoice-info-container">
     <tr>
       <td rowspan="2" class="client-name">
-        {{ timesheet.project.client.invoicing_contact.name}}<br>
-        {{ timesheet.project.client.invoicing_contact.address.html }}
+        {{ timesheet.project.client.name }}<br>
+        {% if timesheet.project.client.invoicing_contact %}
+        c/o {{ timesheet.project.client.invoicing_contact.name }}<br>
+        {% endif %}
+        {% if timesheet.project.client.invoice_recipient_address %}
+        {{ timesheet.project.client.invoice_recipient_address.html }}
+        {% endif %}
       </td>
       <td>
         {{ user.name }}<br>

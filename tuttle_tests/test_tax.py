@@ -54,8 +54,16 @@ def _make_invoice(date, items_data, cancelled=False):
 
     items_data: list of (quantity, unit_price, vat_rate) tuples.
     """
-    contact = Contact(name="Test Contact", email="test@example.com")
-    client = Client(name="Test Client", invoicing_contact=contact)
+    client = Client(
+        name="Test Client",
+        address=Address(
+            street="Test St",
+            number="1",
+            city="Berlin",
+            postal_code="10115",
+            country="Germany",
+        ),
+    )
     contract = Contract(
         title="Test Contract",
         client=client,

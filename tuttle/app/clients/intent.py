@@ -1,7 +1,7 @@
 from ..contacts.intent import ContactsIntent
 from ..core.abstractions import CrudIntent
 from ..core.intent_result import IntentResult
-from ...model import Client
+from ...model import Address, Client
 
 
 class ClientsIntent(CrudIntent):
@@ -12,6 +12,7 @@ class ClientsIntent(CrudIntent):
     deletion_guards = [
         ("contracts", "contracts", lambda c: c.title),
     ]
+    __save_nested__ = {"address": Address}
     __save_skip__ = {"contracts"}
 
     def __init__(self):
@@ -27,5 +28,10 @@ class ClientsIntent(CrudIntent):
             return IntentResult(
                 was_intent_successful=False,
                 error_msg="Please provide the client's name",
+            )
+        if client.address and client.address.is_empty:
+            return IntentResult(
+                was_intent_successful=False,
+                error_msg="Saving client failed. Please specify the address.",
             )
         return self.save(client)

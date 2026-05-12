@@ -53,6 +53,9 @@ export function ClientsView() {
       invoicing_contact: data.contactId
         ? { id: data.contactId }
         : undefined,
+      address: (data.street || data.number || data.city || data.postalCode || data.country)
+        ? { street: data.street, number: data.number, city: data.city, postal_code: data.postalCode, country: data.country }
+        : undefined,
     };
     if (mode === "edit" && selected) {
       client.id = selected.id;
@@ -217,11 +220,19 @@ function ClientDetail({ client, onEdit, onDelete, deleteError }: {
   const contactName = ic ? displayName(ic) : "";
   const email = ic ? str(ic, "email") : "";
   const company = ic ? str(ic, "company") : "";
-  const addr = ic ? subEntity(ic, "address") : null;
-  const addrParts = addr ? [
-    [str(addr, "street"), str(addr, "number")].filter(Boolean).join(" "),
-    [str(addr, "postal_code"), str(addr, "city")].filter(Boolean).join(" "),
-    str(addr, "country"),
+
+  const clientAddr = subEntity(client, "address");
+  const clientAddrParts = clientAddr ? [
+    [str(clientAddr, "street"), str(clientAddr, "number")].filter(Boolean).join(" "),
+    [str(clientAddr, "postal_code"), str(clientAddr, "city")].filter(Boolean).join(" "),
+    str(clientAddr, "country"),
+  ].filter(Boolean) : [];
+
+  const contactAddr = ic ? subEntity(ic, "address") : null;
+  const contactAddrParts = contactAddr ? [
+    [str(contactAddr, "street"), str(contactAddr, "number")].filter(Boolean).join(" "),
+    [str(contactAddr, "postal_code"), str(contactAddr, "city")].filter(Boolean).join(" "),
+    str(contactAddr, "country"),
   ].filter(Boolean) : [];
 
   return (
@@ -250,21 +261,35 @@ function ClientDetail({ client, onEdit, onDelete, deleteError }: {
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">{deleteError}</div>
       )}
 
-      <div className="space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Invoicing Contact</div>
-        {contactName && <InfoRow icon={<Users size={14} />} label="Name" value={contactName} />}
-        {email && <InfoRow icon={<Mail size={14} />} label="Email" value={email} />}
-        {company && <InfoRow icon={<Building2 size={14} />} label="Company" value={company} />}
-        {addrParts.length > 0 && (
+      {clientAddrParts.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Address</div>
           <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-card border border-border-subtle">
             <span className="text-tertiary mt-0.5"><MapPin size={14} /></span>
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-tertiary mb-1">Address</div>
-              {addrParts.map((line, i) => <div key={i} className="text-sm">{line}</div>)}
+              {clientAddrParts.map((line, i) => <div key={i} className="text-sm">{line}</div>)}
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {(contactName || email || company || contactAddrParts.length > 0) && (
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Invoicing Contact</div>
+          {contactName && <InfoRow icon={<Users size={14} />} label="Name" value={contactName} />}
+          {email && <InfoRow icon={<Mail size={14} />} label="Email" value={email} />}
+          {company && <InfoRow icon={<Building2 size={14} />} label="Company" value={company} />}
+          {contactAddrParts.length > 0 && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-card border border-border-subtle">
+              <span className="text-tertiary mt-0.5"><MapPin size={14} /></span>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-tertiary mb-1">Address</div>
+                {contactAddrParts.map((line, i) => <div key={i} className="text-sm">{line}</div>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -286,6 +311,11 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 interface ClientFormData {
   name: string;
   contactId: number | null;
+  street: string;
+  number: string;
+  city: string;
+  postalCode: string;
+  country: string;
 }
 
 function ClientForm({ client, contacts, onSave, onCancel }: {
@@ -295,8 +325,14 @@ function ClientForm({ client, contacts, onSave, onCancel }: {
   onCancel: () => void;
 }) {
   const ic = client ? subEntity(client, "invoicing_contact") : null;
+  const addr = client ? subEntity(client, "address") : null;
   const [name, setName] = useState(client ? str(client, "name") : "");
   const [contactId, setContactId] = useState<number | null>(ic?.id ?? null);
+  const [street, setStreet] = useState(addr ? str(addr, "street") : "");
+  const [number, setNumber] = useState(addr ? str(addr, "number") : "");
+  const [city, setCity] = useState(addr ? str(addr, "city") : "");
+  const [postalCode, setPostalCode] = useState(addr ? str(addr, "postal_code") : "");
+  const [country, setCountry] = useState(addr ? str(addr, "country") : "");
   const [saving, setSaving] = useState(false);
   const isNew = !client;
 
@@ -305,7 +341,7 @@ function ClientForm({ client, contacts, onSave, onCancel }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await onSave({ name, contactId });
+    await onSave({ name, contactId, street, number, city, postalCode, country });
     setSaving(false);
   }
 
@@ -329,11 +365,23 @@ function ClientForm({ client, contacts, onSave, onCancel }: {
         <FormField label="Name" value={name} onChange={setName} autoFocus required />
       </Section>
 
-      <Section title="Invoicing Contact">
+      <Section title="Address">
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Street" value={street} onChange={setStreet} />
+          <FormField label="Number" value={number} onChange={setNumber} />
+          <FormField label="Postal Code" value={postalCode} onChange={setPostalCode} />
+          <FormField label="City" value={city} onChange={setCity} />
+        </div>
+        <div className="mt-3">
+          <FormField label="Country" value={country} onChange={setCountry} />
+        </div>
+      </Section>
+
+      <Section title="Invoicing Contact (Optional)">
         <label className="block text-xs text-tertiary mb-1">Select Contact</label>
         <select value={contactId ?? ""} onChange={(e) => setContactId(e.target.value ? Number(e.target.value) : null)}
           className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors">
-          <option value="">— Select a contact —</option>
+          <option value="">— No contact —</option>
           {contactList.map((c) => (
             <option key={c.id} value={c.id}>{displayName(c)}</option>
           ))}

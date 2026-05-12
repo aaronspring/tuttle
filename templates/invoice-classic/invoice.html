@@ -51,8 +51,12 @@
       <span class="party-label">Bill To</span>
       <div class="party-value">
         <strong>{{ invoice.contract.client.name }}</strong><br>
+        {% if invoice.contract.client.invoicing_contact %}
         c/o {{ invoice.contract.client.invoicing_contact.name }}<br>
-        {{ invoice.contract.client.invoicing_contact.address.html }}
+        {% endif %}
+        {% if invoice.contract.client.invoice_recipient_address %}
+        {{ invoice.contract.client.invoice_recipient_address.html }}
+        {% endif %}
       </div>
     </div>
   </div>

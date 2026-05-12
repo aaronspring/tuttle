@@ -115,6 +115,7 @@ class Address(RpcMixin, SQLModel, table=True):
     country: str = Field(default="")
     users: List["User"] = Relationship(back_populates="address")
     contacts: List["Contact"] = Relationship(back_populates="address")
+    clients: List["Client"] = Relationship(back_populates="address")
 
     @property
     def printed(self):
@@ -309,19 +310,31 @@ class Contact(RpcMixin, SQLModel, table=True):
 
 
 class Client(RpcMixin, SQLModel, table=True):
-    """A client the freelancer has contracted with."""
+    """A client the freelancer has contracted with.
 
-    __rpc_relationships__ = ("invoicing_contact",)
+    A client can be a company or a natural person.  It may optionally
+    have an invoicing contact (a person to address invoices to) and/or
+    its own address.
+    """
+
+    __rpc_relationships__ = ("invoicing_contact", "address")
+    __rpc_computed__ = ("invoice_recipient_name",)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(
         description="Name of the client.",
     )
-    # Client 1:1 invoicing Contact
-    invoicing_contact_id: int = Field(
+    # Client n:1 Address (optional, for direct invoicing)
+    address_id: Optional[int] = Field(default=None, foreign_key="address.id")
+    address: Optional[Address] = Relationship(
+        back_populates="clients",
+        sa_relationship_kwargs={"lazy": "subquery"},
+    )
+    # Client n:1 invoicing Contact (optional)
+    invoicing_contact_id: Optional[int] = Field(
         default=None, foreign_key="contact.id", ondelete="RESTRICT"
     )
-    invoicing_contact: Contact = Relationship(
+    invoicing_contact: Optional[Contact] = Relationship(
         back_populates="invoicing_contact_of",
         sa_relationship_kwargs={"lazy": "subquery"},
     )
@@ -329,6 +342,20 @@ class Client(RpcMixin, SQLModel, table=True):
         back_populates="client",
         sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
+
+    @property
+    def invoice_recipient_name(self) -> str:
+        """Name to use on invoices: contact name if available, else client name."""
+        if self.invoicing_contact and self.invoicing_contact.name:
+            return self.invoicing_contact.name
+        return self.name
+
+    @property
+    def invoice_recipient_address(self) -> Optional["Address"]:
+        """Address for invoices: prefer contact address, fall back to client address."""
+        if self.invoicing_contact and self.invoicing_contact.address:
+            return self.invoicing_contact.address
+        return self.address
 
 
 CONTRACT_DEFAULT_VAT_RATE = 0.19

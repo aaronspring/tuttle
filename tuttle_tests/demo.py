@@ -89,23 +89,30 @@ contact_four = Contact(
 
 client_one = Client(
     name="Central Services",
-    invoicing_contact=Contact(
-        first_name="Central",
-        last_name="Services",
-        email="info@centralservices.com",
-        address=Address(
-            street="Main Street",
-            number="42",
-            postal_code="55555",
-            city="Somewhere",
-            country="Brazil",
-        ),
+    address=Address(
+        street="Main Street",
+        number="42",
+        postal_code="55555",
+        city="Somewhere",
+        country="Brazil",
     ),
 )
 
 client_two = Client(
     name="Sam Lowry",
     invoicing_contact=contact_one,
+)
+
+client_three = Client(
+    name="Shangri-La Towers",
+    address=Address(
+        street="Upper Street",
+        number="1",
+        postal_code="55555",
+        city="Somewhere",
+        country="Brazil",
+    ),
+    invoicing_contact=contact_three,
 )
 
 # CONTRACTS
@@ -127,7 +134,7 @@ contract_one = Contract(
 contract_two = Contract(
     title="Heating Repair Contract",
     client=client_two,
-    rate=50.00,
+    rate=0,
     currency="EUR",
     unit=time.TimeUnit.hour,
     units_per_workday=8,
@@ -167,6 +174,7 @@ def add_demo_data(
     con.store(contact_four)
     con.store(client_one)
     con.store(client_two)
+    con.store(client_three)
     con.store(contract_one)
     con.store(contract_two)
     con.store(project_one)

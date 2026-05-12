@@ -55,17 +55,12 @@ def demo_user():
 def demo_clients():
     central_services = Client(
         name="Central Services",
-        invoicing_contact=Contact(
-            first_name="Central",
-            last_name="Services",
-            email="info@centralservices.com",
-            address=Address(
-                street="Main Street",
-                number="42",
-                postal_code="55555",
-                city="Sao Paolo",
-                country="Brazil",
-            ),
+        address=Address(
+            street="Main Street",
+            number="42",
+            postal_code="55555",
+            city="Sao Paolo",
+            country="Brazil",
         ),
     )
 
@@ -109,7 +104,7 @@ def demo_contracts(demo_clients):
     heating_repair_contract = Contract(
         title="Heating Repair Contract",
         client=demo_clients[1],
-        rate=50.00,
+        rate=0,
         currency="EUR",
         unit=tuttle.time.TimeUnit.hour,
         units_per_workday=8,

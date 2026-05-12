@@ -16,10 +16,14 @@
       <div class="return-line">{{ user.name }} · {{ user.address.street }} {{ user.address.number }} · {{ user.address.postal_code }} {{ user.address.city }}</div>
       <div class="recipient">
         <div><strong>{{ invoice.contract.client.name }}</strong></div>
+        {% if invoice.contract.client.invoicing_contact %}
         <div>c/o {{ invoice.contract.client.invoicing_contact.name }}</div>
-        <div>{{ invoice.contract.client.invoicing_contact.address.street }} {{ invoice.contract.client.invoicing_contact.address.number }}</div>
-        <div>{{ invoice.contract.client.invoicing_contact.address.postal_code }} {{ invoice.contract.client.invoicing_contact.address.city }}</div>
-        <div>{{ invoice.contract.client.invoicing_contact.address.country }}</div>
+        {% endif %}
+        {% if invoice.contract.client.invoice_recipient_address %}
+        <div>{{ invoice.contract.client.invoice_recipient_address.street }} {{ invoice.contract.client.invoice_recipient_address.number }}</div>
+        <div>{{ invoice.contract.client.invoice_recipient_address.postal_code }} {{ invoice.contract.client.invoice_recipient_address.city }}</div>
+        <div>{{ invoice.contract.client.invoice_recipient_address.country }}</div>
+        {% endif %}
       </div>
     </div>
     <div class="letterhead">

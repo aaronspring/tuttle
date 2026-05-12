@@ -28,11 +28,19 @@ def test_create_fake_contact(fake):
     assert contact.address is not None
 
 
-def test_create_fake_client(fake):
-    client = demo.create_fake_client(fake)
+def test_create_fake_client_with_contact(fake):
+    client = demo.create_fake_client(fake, with_contact=True)
     assert isinstance(client, Client)
     assert client.name is not None
     assert client.invoicing_contact is not None
+
+
+def test_create_fake_client_with_address(fake):
+    client = demo.create_fake_client(fake, with_contact=False)
+    assert isinstance(client, Client)
+    assert client.name is not None
+    assert client.invoicing_contact is None
+    assert client.address is not None
 
 
 def test_create_fake_contract(fake):

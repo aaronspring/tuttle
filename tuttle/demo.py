@@ -15,7 +15,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from tuttle import rendering
 from tuttle.calendar import Calendar, ICSCalendar
-from tuttle.migrations.run import run_migrations
+
 from tuttle.model import (
     Address,
     BankAccount,
@@ -163,18 +163,41 @@ def create_heating_contact(fake: faker.Faker, company_name: str) -> Contact:
     )
 
 
+def create_fake_address(fake: faker.Faker) -> Address:
+    """Create a fake postal address."""
+    street_line = fake.street_address()
+    city_line = fake.city()
+    try:
+        street = street_line.rsplit(" ", 1)[0]
+        number = street_line.rsplit(" ", 1)[1]
+    except IndexError:
+        street = street_line
+        number = ""
+    return Address(
+        street=street,
+        number=number,
+        city=city_line,
+        postal_code=fake.postcode(),
+        country=fake.country(),
+    )
+
+
 def create_fake_client(
     fake: faker.Faker,
     invoicing_contact: Optional[Contact] = None,
+    with_contact: bool = True,
 ) -> Client:
-    if invoicing_contact is None:
-        invoicing_contact = create_fake_contact(fake)
-    client = Client(
+    if with_contact:
+        if invoicing_contact is None:
+            invoicing_contact = create_fake_contact(fake)
+        return Client(
+            name=fake.company(),
+            invoicing_contact=invoicing_contact,
+        )
+    return Client(
         name=fake.company(),
-        invoicing_contact=invoicing_contact,
+        address=create_fake_address(fake),
     )
-    assert client.invoicing_contact is not None
-    return client
 
 
 def create_fake_contract(
@@ -385,9 +408,39 @@ def create_heating_data(
     """Create heating-repair themed demo data for Harry Tuttle."""
     fake = faker.Faker(locale=["de_DE", "en_US"])
 
+    # -- canonical clients (always present) ------------------------------------
+
+    central_services = Client(
+        name="Central Services",
+        address=Address(
+            street="Main Street",
+            number="42",
+            postal_code="55555",
+            city="Somewhere",
+            country="Brazil",
+        ),
+    )
+
+    sam_lowry_contact = Contact(
+        first_name="Sam",
+        last_name="Lowry",
+        email="lowry@centralservices.com",
+        address=Address(
+            street="Main Street",
+            number="9999",
+            postal_code="55555",
+            city="Somewhere",
+            country="Brazil",
+        ),
+    )
+    sam_lowry = Client(name="Sam Lowry", invoicing_contact=sam_lowry_contact)
+
+    contacts = [sam_lowry_contact]
+    clients = [central_services, sam_lowry]
+
+    # -- randomly generated heating-industry clients ---------------------------
+
     n = min(n, len(_HEATING_CLIENTS))
-    contacts = []
-    clients = []
     for i in range(n):
         name, _desc = _HEATING_CLIENTS[i]
         contact = create_heating_contact(fake, company_name=name)
@@ -395,10 +448,16 @@ def create_heating_data(
         client = Client(name=name, invoicing_contact=contact)
         clients.append(client)
 
+    # -- contracts (one per client) --------------------------------------------
+
     contracts = []
     for i, client in enumerate(clients):
-        title = _HEATING_CONTRACTS[i % len(_HEATING_CONTRACTS)]
-        rate = random.choice([65, 72, 80, 85, 95])
+        if client is sam_lowry:
+            rate = 0
+            title = "Heating Repair"
+        else:
+            rate = random.choice([65, 72, 80, 85, 95])
+            title = _HEATING_CONTRACTS[i % len(_HEATING_CONTRACTS)]
         contract = Contract(
             title=f"{title} – {client.name}",
             client=client,
@@ -415,9 +474,24 @@ def create_heating_data(
         )
         contracts.append(contract)
 
+    _CANONICAL_PROJECTS = {
+        "Central Services": (
+            "Heating Engineering",
+            "Central heating system maintenance and engineering",
+        ),
+        "Sam Lowry": (
+            "Heating Repair",
+            "Emergency heating repair for a friend",
+        ),
+    }
+
     projects = []
     for i, contract in enumerate(contracts):
-        title, description = _HEATING_PROJECTS[i % len(_HEATING_PROJECTS)]
+        canonical = _CANONICAL_PROJECTS.get(contract.client.name)
+        if canonical:
+            title, description = canonical
+        else:
+            title, description = _HEATING_PROJECTS[i % len(_HEATING_PROJECTS)]
         tag = f"#{''.join(title.split()[:2]).lower()}"
         project = Project(
             title=title,
@@ -565,8 +639,8 @@ def install_demo_data(
     logger.info(f"Installing demo data in {db_url}...")
     logger.info(f"Creating database engine at: {db_url}...")
     db_engine = create_engine(db_url)
-    logger.info("Creating database tables via migrations...")
-    run_migrations(db_url)
+    logger.info("Creating database tables...")
+    SQLModel.metadata.create_all(db_engine)
 
     logger.info("Creating demo user...")
     with Session(db_engine) as session:

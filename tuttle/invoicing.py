@@ -45,10 +45,21 @@ def generate_invoice(
 def generate_invoice_email(
     invoice: Invoice,
     user: User,
-) -> Dict:
-    """Generate an email with the invoice attached."""
+) -> Optional[Dict]:
+    """Generate an email with the invoice attached.
+
+    Returns None when no contact email is available.
+    """
+    client = invoice.client
+    contact = client.invoicing_contact if client else None
+    greeting = contact.first_name if contact and contact.first_name else client.name
+    recipient = contact.email if contact and contact.email else None
+
+    if not recipient:
+        return None
+
     body = f"""
-    Dear {invoice.client.invoicing_contact.first_name}
+    Dear {greeting}
 
     Please find attached the invoice number {invoice.number}.
 
@@ -59,6 +70,6 @@ def generate_invoice_email(
     email = {
         "subject": f"Invoice {invoice.number}",
         "body": body,
-        "recipient": invoice.client.invoicing_contact.email,
+        "recipient": recipient,
     }
     return email

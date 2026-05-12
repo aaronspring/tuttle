@@ -36,8 +36,13 @@
   <div>
     <p>
     <address id="to">
-      {{ invoice.contract.client.invoicing_contact.name}}<br>
-      {{ invoice.contract.client.invoicing_contact.address.html }}
+      {{ invoice.contract.client.name }}<br>
+      {% if invoice.contract.client.invoicing_contact %}
+      c/o {{ invoice.contract.client.invoicing_contact.name }}<br>
+      {% endif %}
+      {% if invoice.contract.client.invoice_recipient_address %}
+      {{ invoice.contract.client.invoice_recipient_address.html }}
+      {% endif %}
     </address>
     </p>
   </div>

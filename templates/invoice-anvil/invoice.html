@@ -38,8 +38,12 @@
     <tr>
       <td rowspan="2" class="client-name">
         {{ invoice.contract.client.name }}<br>
-        c/o {{ invoice.contract.client.invoicing_contact.name}}<br>
-        {{ invoice.contract.client.invoicing_contact.address.html }}
+        {% if invoice.contract.client.invoicing_contact %}
+        c/o {{ invoice.contract.client.invoicing_contact.name }}<br>
+        {% endif %}
+        {% if invoice.contract.client.invoice_recipient_address %}
+        {{ invoice.contract.client.invoice_recipient_address.html }}
+        {% endif %}
       </td>
       <td>
         <big>{{ user.name }}</big><br>
