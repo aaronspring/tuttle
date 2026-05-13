@@ -35,3 +35,15 @@ class LlmIntent:
             _llm.load_config(),
         )
         return IntentResult(was_intent_successful=True, data=items)
+
+    def parse_contract_document(
+        self,
+        file_base64: str,
+        file_name: str,
+    ) -> IntentResult:
+        result = _llm.parse_contract_document(
+            file_base64,
+            file_name,
+            _llm.load_config(),
+        )
+        return IntentResult(was_intent_successful=True, data=result)

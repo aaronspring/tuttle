@@ -124,13 +124,13 @@ def _flat_schema(model_cls: type, *, include: Optional[List[str]] = None) -> typ
 
 
 _AddressExtract = _flat_schema(Address)
+_ContactScalarExtract = _flat_schema(
+    Contact, include=["first_name", "last_name", "company", "email"]
+)
 
 
-class _ContactExtract(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    company: Optional[str] = None
-    email: Optional[str] = None
+# Contact needs a nested address object (not an FK), so extend the flat schema
+class _ContactExtract(_ContactScalarExtract):  # type: ignore[valid-type]
     address: Optional[_AddressExtract] = None  # type: ignore[valid-type]
 
 
@@ -407,6 +407,131 @@ def _map_projects(result: ProjectExtractionResult) -> List[Dict[str, Any]]:
             }
         )
     return results
+
+
+# ---------------------------------------------------------------------------
+# Unified contract-document extraction (all entity types in one pass)
+# ---------------------------------------------------------------------------
+
+
+class _RefContact(_ContactExtract):
+    ref: str = Field(description="Internal reference ID, e.g. 'contact_1'")
+
+
+class _RefClient(_ClientExtract):  # type: ignore[valid-type]
+    ref: str = Field(description="Internal reference ID, e.g. 'client_1'")
+    contact_ref: Optional[str] = Field(
+        default=None, description="ref of the contact person for this client"
+    )
+
+
+class _RefContract(_ContractExtract):  # type: ignore[valid-type]
+    ref: str = Field(description="Internal reference ID, e.g. 'contract_1'")
+    client_ref: Optional[str] = Field(
+        default=None, description="ref of the client this contract belongs to"
+    )
+
+
+class _RefProject(_ProjectExtract):  # type: ignore[valid-type]
+    ref: str = Field(description="Internal reference ID, e.g. 'project_1'")
+    contract_ref: Optional[str] = Field(
+        default=None, description="ref of the contract this project belongs to"
+    )
+
+
+class ContractDocumentExtractionResult(BaseModel):
+    """All entities extracted from a single contract document, with cross-refs."""
+
+    contacts: List[_RefContact] = []
+    clients: List[_RefClient] = []
+    contracts: List[_RefContract] = []
+    projects: List[_RefProject] = []
+
+
+_CONTRACT_DOC_PROMPT = (
+    "You are analysing a contract or service-agreement document for a freelancer. "
+    "Extract ALL of the following entity types that appear in the document:\n\n"
+    "1. **contacts** — people mentioned (e.g. signatories, contact persons). "
+    "   Extract first_name, last_name, company, email, and address fields.\n"
+    "2. **clients** — companies or organisations that are the contracting party. "
+    "   Extract the client name. If a contact person is associated, set contact_ref "
+    "   to the ref of the corresponding contact.\n"
+    "3. **contracts** — the contractual agreements themselves. "
+    "   Extract title, rate, currency, unit (hour/day), billing_cycle (monthly/quarterly/yearly), "
+    "   volume, signature_date, start_date, end_date, VAT_rate, term_of_payment. "
+    "   Set client_ref to the ref of the client.\n"
+    "4. **projects** — specific project descriptions or work packages. "
+    "   Extract title, tag (starting with #), description, start_date, end_date. "
+    "   Set contract_ref to the ref of the contract.\n\n"
+    "Assign each entity a unique ref string (e.g. contact_1, client_1, contract_1, project_1) "
+    "and use these refs to link related entities.\n"
+    "Dates must be in YYYY-MM-DD format. Leave unknown fields as null.\n\n"
+)
+
+
+def parse_contract_document(
+    file_base64: str,
+    file_name: str,
+    config: Optional[LLMConfig] = None,
+) -> Dict[str, Any]:
+    """Extract all entity types from a contract document in a single LLM call.
+
+    Returns a dict with keys: contacts, clients, contracts, projects —
+    each a list of dicts ready for frontend review.
+    """
+    if config is None:
+        config = load_config()
+
+    if not config.model:
+        raise ValueError("No LLM model configured. Please set up an LLM in Settings.")
+
+    file_bytes = base64.b64decode(file_base64)
+    text = _extract_text(file_bytes, file_name)
+
+    if not text.strip():
+        raise ValueError("Document appears to be empty or could not be read.")
+
+    llm = _get_llm(config)
+    sllm = llm.as_structured_llm(output_cls=ContractDocumentExtractionResult)
+
+    prompt = (
+        _CONTRACT_DOC_PROMPT
+        + "--- DOCUMENT START ---\n"
+        + text
+        + "\n--- DOCUMENT END ---"
+    )
+
+    response = sllm.complete(prompt)
+    extracted: ContractDocumentExtractionResult = response.raw
+
+    return _map_contract_document(extracted)
+
+
+def _dump_extracted(items: list) -> List[Dict[str, Any]]:
+    """Serialise a list of Pydantic extraction models to dicts.
+
+    Coerces date fields via ``_serialise_date`` for frontend convenience.
+    """
+    results = []
+    for item in items:
+        d = item.model_dump()
+        for k in list(d):
+            if k.endswith("_date"):
+                d[k] = _serialise_date(d[k])
+        results.append(d)
+    return results
+
+
+def _map_contract_document(
+    result: ContractDocumentExtractionResult,
+) -> Dict[str, Any]:
+    """Convert the unified extraction result to a frontend-ready dict."""
+    return {
+        "contacts": _dump_extracted(result.contacts),
+        "clients": _dump_extracted(result.clients),
+        "contracts": _dump_extracted(result.contracts),
+        "projects": _dump_extracted(result.projects),
+    }
 
 
 # ---------------------------------------------------------------------------
