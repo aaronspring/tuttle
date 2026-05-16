@@ -13,10 +13,10 @@ let pythonBridge: PythonBridge | null = null;
 function createWindow() {
   mainWindow = new BrowserWindow({
     title: "Tuttle",
-    width: 1280,
-    height: 820,
-    minWidth: 900,
-    minHeight: 600,
+    width: 1440,
+    height: 960,
+    minWidth: 1024,
+    minHeight: 700,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 18 },
     backgroundColor: "#292929",

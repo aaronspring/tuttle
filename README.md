@@ -38,11 +38,11 @@ We develop the solution as a desktop application. Sensitive financial data is pr
 
 ## Features
 
-### Business Data Management
+### Dashboard
 
-Manage your business contacts, clients and contract terms for your projects - all in one place. Entity list views support sorting by any field.
+Get an overview of your freelance business at a glance: revenue, outstanding invoices, project budgets and key performance indicators.
 
-<img src="assets/images/screenshot-contract.png" width=768 />
+<img src="assets/images/screenshot-dashboard.png" width=768 />
 
 ### Time Tracking
 
@@ -50,12 +50,11 @@ Track the time you spend on your projects. Import from your cloud calendar (iClo
 
 <img src="assets/images/screenshot-timetracking.png" width=768 />
 
-
 ### Invoicing
 
 Generate invoices and timesheets automatically from your time tracking data, or create invoices manually by entering the quantity of hours or days directly. Export to PDF and send via email.
 
-<img src="assets/images/screenshot-invoicing.png" width=768 />
+<img src="assets/images/screenshot-invoices.png" width=768 />
 
 
 ## Roadmap
