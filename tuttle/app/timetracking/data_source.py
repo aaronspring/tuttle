@@ -7,6 +7,7 @@ import icloudpy
 
 from ..core.abstractions import SQLModelDataSourceMixin
 from ..core.intent_result import IntentResult
+from ..core.rpc_utils import register_reset
 from pandas import DataFrame
 
 from ...calendar import ICSCalendar, ICloudCalendar, CloudCalendar
@@ -17,17 +18,25 @@ from ... import timetracking
 
 @singleton
 class TimeTrackingDataFrameSource:
-    """Provides get or edit access to the data frame in memory"""
+    """Provides get or edit access to the data frame in memory.
+
+    Because this is a @singleton, its data survives intent resets.
+    We register a reset callback so that switching users clears stale data.
+    """
 
     def __init__(self):
         super().__init__()
         self.data: Optional[DataFrame] = None
+        register_reset(self.clear)
 
     def get_data_frame(self) -> DataFrame:
         return self.data
 
     def store_data_frame(self, data: DataFrame):
         self.data = data
+
+    def clear(self):
+        self.data = None
 
 
 class TimeTrackingSpreadsheetSource:
