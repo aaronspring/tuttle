@@ -107,6 +107,9 @@ export function Shell() {
     setRegLoading(false);
     setRegDialogOpen(false);
     if (res.ok && res.data) {
+      if (data.invoice_number_scheme) {
+        await rpc("preferences.save", { invoice_number_scheme: data.invoice_number_scheme });
+      }
       await refreshUsers();
       await refreshActiveUser();
       setBootState("ready");

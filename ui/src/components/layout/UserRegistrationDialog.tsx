@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { rpc } from "../../api/rpc";
 
 type Props = {
   open: boolean;
@@ -20,21 +21,37 @@ export type UserFormData = {
   city: string;
   country: string;
   vat_number: string;
+  invoice_number_scheme: string;
 };
 
 const EMPTY: UserFormData = {
   name: "", subtitle: "", email: "", phone: "", website: "",
   street: "", street_num: "", postal_code: "", city: "", country: "Germany",
-  vat_number: "",
+  vat_number: "", invoice_number_scheme: "daily",
+};
+
+const SCHEME_EXAMPLES: Record<string, string> = {
+  daily: "2025-05-17-01",
+  yearly: "2025-01",
+  plain: "01",
 };
 
 export function UserRegistrationDialog({ open, onClose, onSubmit, loading }: Props) {
   const [form, setForm] = useState<UserFormData>({ ...EMPTY });
+  const [schemes, setSchemes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (open) {
+      rpc<Record<string, string>>("invoicing.available_number_schemes").then((res) => {
+        if (res.ok && res.data) setSchemes(res.data);
+      });
+    }
+  }, [open]);
 
   if (!open) return null;
 
   function set<K extends keyof UserFormData>(key: K) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
   }
 
@@ -116,6 +133,28 @@ export function UserRegistrationDialog({ open, onClose, onSubmit, loading }: Pro
             <label className={labelCls}>VAT number</label>
             <input className={inputCls} value={form.vat_number} onChange={set("vat_number")} placeholder="DE123456789" />
           </div>
+
+          <fieldset className="border border-border-subtle rounded-lg px-4 pb-3 pt-2">
+            <legend className="text-xs font-medium text-secondary px-1">Invoice numbering</legend>
+            <div className="space-y-2 mt-1">
+              {Object.entries(schemes).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="invoice_number_scheme"
+                    value={key}
+                    checked={form.invoice_number_scheme === key}
+                    onChange={set("invoice_number_scheme")}
+                    className="accent-accent"
+                  />
+                  <div>
+                    <span className="text-sm text-primary group-hover:text-accent transition-colors">{label}</span>
+                    <span className="ml-2 text-xs text-muted font-mono">{SCHEME_EXAMPLES[key]}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </form>
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-border-subtle">

@@ -115,21 +115,53 @@ class InvoicingDataSource(SQLModelDataSourceMixin):
         timesheet = invoice.timesheets[0]
         return timesheet
 
-    def generate_invoice_number(self, date: datetime.date) -> str:
-        """Generate a new valid invoice number"""
-        # invoice number scheme: YYYY-MM-DD-XX
-        prefix = date.strftime("%Y-%m-%d")
+    def generate_invoice_number(
+        self, date: datetime.date, scheme: str = "daily"
+    ) -> str:
+        """Generate a sequential invoice number using the given scheme.
 
-        # where XX is the number of invoices for the day
-        # if there are no invoices for the day, start at 1
-        # if there are invoices for the day, start at the last invoice number + 1
-        # count the number of invoices for the day
+        Schemes:
+          daily  — YYYY-MM-DD-NN  (sequence resets each day)
+          yearly — YYYY-NN        (sequence resets each year)
+          plain  — NN             (never resets)
+
+        Finds the max existing sequence suffix to avoid collisions after
+        deletions.  Sequence numbers are zero-padded to at least 2 digits.
+        """
+        if scheme == "daily":
+            prefix = date.strftime("%Y-%m-%d")
+        elif scheme == "yearly":
+            prefix = date.strftime("%Y")
+        elif scheme == "plain":
+            prefix = ""
+        else:
+            prefix = date.strftime("%Y-%m-%d")
+
         with self.create_session() as session:
-            invoices = session.exec(
-                sqlmodel.select(Invoice).where(Invoice.date == date)
-            ).all()
-            invoice_count = len(invoices)
-            if invoice_count == 0:
-                return f"{prefix}-01"
+            if prefix:
+                invoices = session.exec(
+                    sqlmodel.select(Invoice).where(
+                        Invoice.number.startswith(f"{prefix}-")  # type: ignore[union-attr]
+                    )
+                ).all()
             else:
-                return f"{prefix}-{invoice_count + 1}"
+                invoices = session.exec(sqlmodel.select(Invoice)).all()
+
+            max_seq = 0
+            for inv in invoices:
+                if not inv.number:
+                    continue
+                try:
+                    seq = (
+                        int(inv.number.rsplit("-", 1)[-1])
+                        if prefix
+                        else int(inv.number)
+                    )
+                    max_seq = max(max_seq, seq)
+                except (ValueError, IndexError):
+                    continue
+
+            next_seq = max_seq + 1
+            if prefix:
+                return f"{prefix}-{next_seq:02d}"
+            return f"{next_seq:02d}"

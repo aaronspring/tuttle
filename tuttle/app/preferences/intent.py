@@ -8,7 +8,11 @@ read from the same ``AppDatabase`` backend.
 
 from ..core.intent_result import IntentResult
 from ...app_db import AppDatabase
-from .model import PreferencesStorageKeys, DEFAULT_INVOICE_TEMPLATE
+from .model import (
+    DEFAULT_INVOICE_NUMBER_SCHEME,
+    DEFAULT_INVOICE_TEMPLATE,
+    PreferencesStorageKeys,
+)
 
 
 class PreferencesIntent:
@@ -29,10 +33,16 @@ class PreferencesIntent:
                     PreferencesStorageKeys.language_key.value,
                 )
                 or "en",
+                "invoice_number_scheme": self._app_db.get_setting(
+                    PreferencesStorageKeys.invoice_number_scheme_key.value,
+                )
+                or DEFAULT_INVOICE_NUMBER_SCHEME,
             },
         )
 
-    def save(self, invoice_template=None, language=None) -> IntentResult:
+    def save(
+        self, invoice_template=None, language=None, invoice_number_scheme=None
+    ) -> IntentResult:
         if invoice_template is not None:
             self._app_db.set_setting(
                 PreferencesStorageKeys.invoice_template_key.value,
@@ -42,6 +52,11 @@ class PreferencesIntent:
             self._app_db.set_setting(
                 PreferencesStorageKeys.language_key.value,
                 language,
+            )
+        if invoice_number_scheme is not None:
+            self._app_db.set_setting(
+                PreferencesStorageKeys.invoice_number_scheme_key.value,
+                invoice_number_scheme,
             )
         return IntentResult(was_intent_successful=True, data=None)
 

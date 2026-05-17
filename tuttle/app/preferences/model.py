@@ -15,6 +15,14 @@ SUPPORTED_INVOICE_LANGUAGES = {
 
 DEFAULT_INVOICE_TEMPLATE = "invoice-modern"
 
+INVOICE_NUMBER_SCHEMES = {
+    "daily": "YYYY-MM-DD-NN (daily sequence)",
+    "yearly": "YYYY-NN (yearly sequence)",
+    "plain": "NN (plain auto-increment)",
+}
+
+DEFAULT_INVOICE_NUMBER_SCHEME = "daily"
+
 
 @dataclass
 class Preferences:
@@ -23,6 +31,7 @@ class Preferences:
     cloud_acc_provider: str = ""
     language: str = ""
     invoice_template: str = DEFAULT_INVOICE_TEMPLATE
+    invoice_number_scheme: str = DEFAULT_INVOICE_NUMBER_SCHEME
 
 
 class PreferencesStorageKeys(Enum):
@@ -33,6 +42,7 @@ class PreferencesStorageKeys(Enum):
     cloud_provider_key = "preferred_cloud_acc_provider"
     language_key = "preferred_language"
     invoice_template_key = "preferred_invoice_template"
+    invoice_number_scheme_key = "preferred_invoice_number_scheme"
 
     def __str__(self) -> str:
         return str(self.value)

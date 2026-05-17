@@ -13,7 +13,9 @@ from ..core.abstractions import Intent
 from ..core.intent_result import IntentResult
 from ..preferences.intent import PreferencesIntent
 from ..preferences.model import (
+    DEFAULT_INVOICE_NUMBER_SCHEME,
     DEFAULT_INVOICE_TEMPLATE,
+    INVOICE_NUMBER_SCHEMES,
     INVOICE_TEMPLATES,
     PreferencesStorageKeys,
     SUPPORTED_INVOICE_LANGUAGES,
@@ -67,6 +69,10 @@ class InvoicingIntent(Intent):
             app_db.get_setting(PreferencesStorageKeys.invoice_template_key.value)
             or DEFAULT_INVOICE_TEMPLATE
         )
+        number_scheme = (
+            app_db.get_setting(PreferencesStorageKeys.invoice_number_scheme_key.value)
+            or DEFAULT_INVOICE_NUMBER_SCHEME
+        )
 
         def _to_date(v):
             return v if isinstance(v, date) else _dt.date.fromisoformat(v)
@@ -80,6 +86,7 @@ class InvoicingIntent(Intent):
             manual_quantity=manual_quantity,
             language=language,
             template_name=template_name,
+            number_scheme=number_scheme,
         )
 
     # -- Status toggles (accept id, fetch internally) --------------------------
@@ -118,6 +125,9 @@ class InvoicingIntent(Intent):
         return IntentResult(
             was_intent_successful=True, data=SUPPORTED_INVOICE_LANGUAGES
         )
+
+    def available_number_schemes(self) -> IntentResult:
+        return IntentResult(was_intent_successful=True, data=INVOICE_NUMBER_SCHEMES)
 
     def get_user(self) -> IntentResult[User]:
         user = self._user_data_source.get_user()
@@ -170,6 +180,7 @@ class InvoicingIntent(Intent):
         manual_quantity: Optional[float] = None,
         language: str = "en",
         template_name: Optional[str] = None,
+        number_scheme: str = DEFAULT_INVOICE_NUMBER_SCHEME,
     ) -> IntentResult[Invoice]:
         """Create a new invoice.
 
@@ -182,7 +193,7 @@ class InvoicingIntent(Intent):
         user = self._user_data_source.get_user()
         try:
             invoice_number = self._invoicing_data_source.generate_invoice_number(
-                invoice_date
+                invoice_date, scheme=number_scheme
             )
 
             if manual_quantity is not None:

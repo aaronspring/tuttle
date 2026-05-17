@@ -48,11 +48,19 @@ const EMPTY_PROFILE: ProfileForm = {
 interface InvoicingPrefs {
   invoice_template: string;
   language: string;
+  invoice_number_scheme: string;
 }
 
 const DEFAULT_INVOICING: InvoicingPrefs = {
   invoice_template: "invoice-modern",
   language: "en",
+  invoice_number_scheme: "daily",
+};
+
+const SCHEME_EXAMPLES: Record<string, string> = {
+  daily: "2025-05-17-01",
+  yearly: "2025-01",
+  plain: "01",
 };
 
 type Tab = "profile" | "invoicing" | "llm";
@@ -88,6 +96,7 @@ export function SettingsView() {
   const [invoicing, setInvoicing] = useState<InvoicingPrefs>({ ...DEFAULT_INVOICING });
   const [availableTemplates, setAvailableTemplates] = useState<Record<string, string>>({});
   const [availableLanguages, setAvailableLanguages] = useState<Record<string, string>>({});
+  const [availableSchemes, setAvailableSchemes] = useState<Record<string, string>>({});
   const [invoicingSaving, setInvoicingSaving] = useState(false);
   const [invoicingStatus, setInvoicingStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -211,14 +220,16 @@ export function SettingsView() {
   // -- Invoicing preferences -----------------------------------------------
 
   async function loadInvoicingPrefs() {
-    const [prefsRes, tmplRes, langRes] = await Promise.all([
+    const [prefsRes, tmplRes, langRes, schemeRes] = await Promise.all([
       rpc<InvoicingPrefs>("preferences.get"),
       rpc<Record<string, string>>("invoicing.available_templates"),
       rpc<Record<string, string>>("invoicing.available_languages"),
+      rpc<Record<string, string>>("invoicing.available_number_schemes"),
     ]);
     if (prefsRes.ok && prefsRes.data) setInvoicing(prefsRes.data);
     if (tmplRes.ok && tmplRes.data) setAvailableTemplates(tmplRes.data);
     if (langRes.ok && langRes.data) setAvailableLanguages(langRes.data);
+    if (schemeRes.ok && schemeRes.data) setAvailableSchemes(schemeRes.data);
   }
 
   async function handleSaveInvoicing() {
@@ -227,6 +238,7 @@ export function SettingsView() {
     const res = await rpc("preferences.save", {
       invoice_template: invoicing.invoice_template,
       language: invoicing.language,
+      invoice_number_scheme: invoicing.invoice_number_scheme,
     });
     setInvoicingStatus(res.ok ? { type: "success", msg: "Invoicing preferences saved." } : { type: "error", msg: res.error || "Failed to save." });
     setInvoicingSaving(false);
@@ -404,6 +416,22 @@ export function SettingsView() {
               ))}
             </select>
             <p className="mt-1 text-xs text-muted">Language for invoice labels, dates, and currency formatting.</p>
+          </div>
+
+          <div>
+            <label className={labelCls}>Invoice number scheme</label>
+            <select
+              className={inputCls}
+              value={invoicing.invoice_number_scheme}
+              onChange={(e) => setInvoicing((p) => ({ ...p, invoice_number_scheme: e.target.value }))}
+            >
+              {Object.entries(availableSchemes).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              Example: <span className="font-mono text-primary">{SCHEME_EXAMPLES[invoicing.invoice_number_scheme] || "—"}</span>
+            </p>
           </div>
 
           {invoicingStatus && (

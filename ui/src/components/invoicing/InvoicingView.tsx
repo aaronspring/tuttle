@@ -50,7 +50,12 @@ export function InvoicingView() {
     setLoading(true);
     const res = await rpc<Entity[]>("invoicing.get_all");
     if (res.ok && res.data) {
-      setInvoices(res.data);
+      const sorted = [...res.data].sort((a, b) => {
+        const na = str(a, "number") || "";
+        const nb = str(b, "number") || "";
+        return nb.localeCompare(na);
+      });
+      setInvoices(sorted);
       const refreshId = selectId ?? selected?.id;
       if (refreshId != null) {
         const match = res.data.find((i) => i.id === refreshId);
