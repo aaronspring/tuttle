@@ -73,6 +73,7 @@ build-backend = "hatchling.build"
 packages = ["tuttle"]
 
 [tool.pytest.ini_options]
+testpaths = ["tuttle_tests"]
 collect_ignore = ["setup.py"]
 addopts = ""
 

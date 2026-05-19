@@ -40,6 +40,8 @@ def rpc_env(tmp_path_factory):
     try:
         result = dispatch("db.ensure", {})
         assert result["ok"], f"db.ensure failed: {result}"
+        demo_result = dispatch("users.ensure_demo", {})
+        assert demo_result["ok"], f"users.ensure_demo failed: {demo_result}"
         yield tmp
     finally:
         app_db_mod.AppDatabase.__init__ = orig_app_init
