@@ -6,6 +6,8 @@ structured entity extraction from documents using llama_index.
 
 import base64
 import json
+import time
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -108,9 +110,11 @@ def _flat_schema(model_cls: type, *, include: Optional[List[str]] = None) -> typ
 
     Uses model_fields (which already excludes relationships) and keeps only
     scalar columns. All fields made Optional for partial extraction.
+    Field descriptions are preserved so llama_index structured output
+    can communicate field semantics to the LLM via the JSON Schema.
     """
     fields: Dict[str, Any] = {}
-    for name in model_cls.model_fields:
+    for name, field_info in model_cls.model_fields.items():
         if name == "id" or name.endswith("_id"):
             continue
         if include and name not in include:
@@ -118,7 +122,24 @@ def _flat_schema(model_cls: type, *, include: Optional[List[str]] = None) -> typ
         annotation = model_cls.__annotations__.get(name)
         if annotation is None:
             continue
-        fields[name] = (Optional[annotation], None)
+        # Decimal/condecimal emit regex patterns that crash Ollama's
+        # SchemaToGrammar; use plain float for LLM extraction instead.
+        origin = getattr(annotation, "__origin__", None)
+        if annotation is Decimal or (
+            origin is not None and Decimal in getattr(annotation, "__args__", ())
+        ):
+            annotation = float
+        elif hasattr(annotation, "__supertype__") and issubclass(
+            annotation.__supertype__, Decimal
+        ):
+            annotation = float
+        fields[name] = (
+            Optional[annotation],
+            Field(
+                default=None,
+                description=field_info.description,
+            ),
+        )
 
     return _create_model(f"{model_cls.__name__}Extract", **fields)
 
@@ -208,6 +229,7 @@ def _get_llm(config: LLMConfig):
             model=config.model,
             base_url=config.base_url,
             request_timeout=config.request_timeout,
+            thinking=True,
         )
     else:
         raise ValueError(f"Unsupported LLM provider: {config.provider}")
@@ -218,30 +240,10 @@ def _get_llm(config: LLMConfig):
 # ---------------------------------------------------------------------------
 
 _PROMPTS = {
-    "contact": (
-        "Extract all contact information (people or companies) from the following document. "
-        "For each contact, extract: first_name, last_name, company, email. "
-        "If a field is not present in the document, leave it as null.\n\n"
-    ),
-    "client": (
-        "Extract all client/company entities from the following document. "
-        "For each client, extract the company or client name. "
-        "If there's a contact person mentioned for a client, include their name as contact_name_hint. "
-        "If a field is not present, leave it as null.\n\n"
-    ),
-    "contract": (
-        "Extract all contracts or service agreements from the following document. "
-        "For each contract, extract: title, rate, currency, unit (hour/day), billing_cycle (monthly/quarterly/yearly), "
-        "volume, signature_date, start_date, end_date, VAT_rate, term_of_payment. "
-        "If the client name is mentioned, include it as client_name_hint. "
-        "Dates should be in YYYY-MM-DD format. If a field is not present, leave it as null.\n\n"
-    ),
-    "project": (
-        "Extract all project descriptions from the following document. "
-        "For each project, extract: title, tag (starting with #), description, start_date, end_date. "
-        "If the contract title is mentioned, include it as contract_title_hint. "
-        "Dates should be in YYYY-MM-DD format. If a field is not present, leave it as null.\n\n"
-    ),
+    "contact": "Extract all contact information (people or companies) from the following document.\n\n",
+    "client": "Extract all client or company entities from the following document.\n\n",
+    "contract": "Extract all contracts or service agreements from the following document.\n\n",
+    "project": "Extract all project descriptions or work packages from the following document.\n\n",
 }
 
 _OUTPUT_CLASSES = {
@@ -442,31 +444,45 @@ class _RefProject(_ProjectExtract):  # type: ignore[valid-type]
 class ContractDocumentExtractionResult(BaseModel):
     """All entities extracted from a single contract document, with cross-refs."""
 
-    contacts: List[_RefContact] = []
-    clients: List[_RefClient] = []
-    contracts: List[_RefContract] = []
-    projects: List[_RefProject] = []
+    contacts: List[_RefContact] = Field(
+        description="People mentioned, e.g. signatories or contact persons"
+    )
+    clients: List[_RefClient] = Field(
+        description="Companies or organisations that are the contracting party"
+    )
+    contracts: List[_RefContract] = Field(description="Contractual agreements")
+    projects: List[_RefProject] = Field(
+        description="Project descriptions or work packages"
+    )
 
 
 _CONTRACT_DOC_PROMPT = (
-    "You are analysing a contract or service-agreement document for a freelancer. "
-    "Extract ALL of the following entity types that appear in the document:\n\n"
-    "1. **contacts** — people mentioned (e.g. signatories, contact persons). "
-    "   Extract first_name, last_name, company, email, and address fields.\n"
-    "2. **clients** — companies or organisations that are the contracting party. "
-    "   Extract the client name. If a contact person is associated, set contact_ref "
-    "   to the ref of the corresponding contact.\n"
-    "3. **contracts** — the contractual agreements themselves. "
-    "   Extract title, rate, currency, unit (hour/day), billing_cycle (monthly/quarterly/yearly), "
-    "   volume, signature_date, start_date, end_date, VAT_rate, term_of_payment. "
-    "   Set client_ref to the ref of the client.\n"
-    "4. **projects** — specific project descriptions or work packages. "
-    "   Extract title, tag (starting with #), description, start_date, end_date. "
-    "   Set contract_ref to the ref of the contract.\n\n"
-    "Assign each entity a unique ref string (e.g. contact_1, client_1, contract_1, project_1) "
-    "and use these refs to link related entities.\n"
-    "Dates must be in YYYY-MM-DD format. Leave unknown fields as null.\n\n"
+    "You are extracting structured data from a contract or service-agreement document.\n"
+    "Extract ALL of the following entity types:\n\n"
+    "CONTACTS: Every person mentioned by name (signatories, contact persons, managers). "
+    "Include their name, company, email, and address if available.\n\n"
+    "CLIENTS: Every company or organisation that is a party to the contract. "
+    "Link each client to its contact person via contact_ref.\n\n"
+    "CONTRACTS: The contractual agreement(s) described. "
+    "Extract the rate, currency, unit of time, billing cycle, volume, dates, "
+    "VAT rate, and payment terms. Link each contract to its client via client_ref.\n\n"
+    "PROJECTS: Any project, work package, or deliverable described. "
+    "Link each project to its contract via contract_ref.\n\n"
+    "RULES:\n"
+    "- Populate EVERY field you can find evidence for; only use null for truly unknown values.\n"
+    "- Use ref strings (contact_1, client_1, contract_1, project_1) to cross-link entities.\n"
+    "- Dates must be in YYYY-MM-DD format.\n"
+    "- You MUST return at least one contact and one client if the document mentions any parties.\n\n"
 )
+
+
+_IMPORT_STEPS = [
+    {"key": "load_config", "label": "Loading LLM configuration"},
+    {"key": "read_document", "label": "Reading document"},
+    {"key": "connect_llm", "label": "Connecting to LLM"},
+    {"key": "extract_entities", "label": "Extracting entities with AI"},
+    {"key": "map_results", "label": "Processing results"},
+]
 
 
 def parse_contract_document(
@@ -476,41 +492,152 @@ def parse_contract_document(
 ) -> Dict[str, Any]:
     """Extract all entity types from a contract document in a single LLM call.
 
-    Returns a dict with keys: contacts, clients, contracts, projects —
-    each a list of dicts ready for frontend review.
+    Returns a dict with keys:
+    - steps: list of {key, label, status, error?} tracking pipeline progress
+    - contacts, clients, contracts, projects (when successful)
     """
-    if config is None:
-        config = load_config()
+    steps = [{**s, "status": "pending", "error": None} for s in _IMPORT_STEPS]
 
-    if not config.model:
-        raise ValueError("No LLM model configured. Please set up an LLM in Settings.")
+    def _mark(key: str, status: str, error: str | None = None):
+        for s in steps:
+            if s["key"] == key:
+                s["status"] = status
+                if error:
+                    s["error"] = error
+                break
 
-    file_bytes = base64.b64decode(file_base64)
-    text = _extract_text(file_bytes, file_name)
+    def _fail(key: str, error: str) -> Dict[str, Any]:
+        _mark(key, "error", error)
+        return {"steps": steps}
 
-    if not text.strip():
-        raise ValueError("Document appears to be empty or could not be read.")
+    # Step 1: Load config
+    _mark("load_config", "running")
+    try:
+        if config is None:
+            config = load_config()
+        if not config.model:
+            return _fail(
+                "load_config",
+                "No LLM model configured. Please set up an LLM in Settings.",
+            )
+        _mark("load_config", "done")
+    except Exception as e:
+        logger.exception("parse_contract_document: load_config failed")
+        return _fail("load_config", str(e))
 
-    llm = _get_llm(config)
-    sllm = llm.as_structured_llm(output_cls=ContractDocumentExtractionResult)
+    # Step 2: Read document
+    _mark("read_document", "running")
+    try:
+        file_bytes = base64.b64decode(file_base64)
+        text = _extract_text(file_bytes, file_name)
+        if not text.strip():
+            return _fail(
+                "read_document",
+                "Document appears to be empty or could not be read.",
+            )
+        _mark("read_document", "done")
+    except Exception as e:
+        logger.exception("parse_contract_document: read_document failed")
+        return _fail("read_document", f"Could not read document: {e}")
 
-    prompt = (
-        _CONTRACT_DOC_PROMPT
-        + "--- DOCUMENT START ---\n"
-        + text
-        + "\n--- DOCUMENT END ---"
+    # Step 3: Connect to LLM
+    _mark("connect_llm", "running")
+    try:
+        llm = _get_llm(config)
+        sllm = llm.as_structured_llm(output_cls=ContractDocumentExtractionResult)
+        _mark("connect_llm", "done")
+    except Exception as e:
+        logger.exception("parse_contract_document: connect_llm failed")
+        return _fail("connect_llm", f"Could not connect to LLM: {e}")
+
+    # Step 4: Extract entities
+    _mark("extract_entities", "running")
+    text_len = len(text)
+    est_tokens = text_len // 4
+    diag = (
+        f"model={config.model}, base_url={config.base_url}, "
+        f"text={text_len} chars (~{est_tokens} tokens), "
+        f"timeout={config.request_timeout}s"
     )
+    logger.info(f"LLM extraction starting: {diag}")
+    t0 = time.monotonic()
+    try:
+        prompt = (
+            _CONTRACT_DOC_PROMPT
+            + "--- DOCUMENT START ---\n"
+            + text
+            + "\n--- DOCUMENT END ---"
+        )
+        response = sllm.complete(prompt)
+        elapsed = time.monotonic() - t0
+        logger.info(f"LLM extraction completed in {elapsed:.1f}s: {diag}")
+        raw_text = response.text
+        logger.info(f"LLM raw response ({len(raw_text)} chars): {raw_text[:2000]}")
+        extracted: ContractDocumentExtractionResult = response.raw
+        logger.info(
+            f"Parsed extraction: "
+            f"contacts={len(extracted.contacts)}, "
+            f"clients={len(extracted.clients)}, "
+            f"contracts={len(extracted.contracts)}, "
+            f"projects={len(extracted.projects)}"
+        )
+        _mark("extract_entities", "done")
+    except Exception as e:
+        elapsed = time.monotonic() - t0
+        logger.exception(f"LLM extraction failed after {elapsed:.1f}s: {diag}")
+        msg = str(e)
+        low = msg.lower()
+        if "timed out" in low or "timeout" in low:
+            msg = (
+                f"LLM request timed out after {elapsed:.0f}s. "
+                f"Try a faster model or increase the timeout in Settings. ({msg})"
+            )
+        elif (
+            "disconnected" in low
+            or "remoteprotocolerror" in low
+            or "connection reset" in low
+        ):
+            msg = (
+                f"The LLM server disconnected after {elapsed:.0f}s. "
+                f"This usually means the model crashed (out of memory). "
+                f"Check the Ollama server logs, try a smaller model, "
+                f"or reduce the context window. "
+                f"[{config.model} @ {config.base_url}, ~{est_tokens} tokens]"
+            )
+        elif "connection" in low or "refused" in low:
+            msg = f"Could not reach the LLM server. Is Ollama running? ({msg})"
+        return _fail("extract_entities", msg)
 
-    response = sllm.complete(prompt)
-    extracted: ContractDocumentExtractionResult = response.raw
+    # Step 5: Map results
+    _mark("map_results", "running")
+    try:
+        result = _map_contract_document(extracted)
+        _mark("map_results", "done")
+    except Exception as e:
+        logger.exception("parse_contract_document: map_results failed")
+        return _fail("map_results", f"Failed to process LLM output: {e}")
 
-    return _map_contract_document(extracted)
+    return {"steps": steps, **result}
+
+
+def _has_content(d: Dict[str, Any], ignore: set = {"ref"}) -> bool:
+    """True if the dict has at least one non-null, non-empty value beyond ignored keys."""
+    for k, v in d.items():
+        if k in ignore:
+            continue
+        if v is None or v == "" or v == 0:
+            continue
+        if isinstance(v, dict) and not _has_content(v, ignore=set()):
+            continue
+        return True
+    return False
 
 
 def _dump_extracted(items: list) -> List[Dict[str, Any]]:
     """Serialise a list of Pydantic extraction models to dicts.
 
     Coerces date fields via ``_serialise_date`` for frontend convenience.
+    Drops skeleton items where only the ref is populated.
     """
     results = []
     for item in items:
@@ -518,7 +645,10 @@ def _dump_extracted(items: list) -> List[Dict[str, Any]]:
         for k in list(d):
             if k.endswith("_date"):
                 d[k] = _serialise_date(d[k])
-        results.append(d)
+        if _has_content(d):
+            results.append(d)
+        else:
+            logger.debug(f"Dropping skeleton entity: {d}")
     return results
 
 
@@ -526,12 +656,17 @@ def _map_contract_document(
     result: ContractDocumentExtractionResult,
 ) -> Dict[str, Any]:
     """Convert the unified extraction result to a frontend-ready dict."""
-    return {
+    mapped = {
         "contacts": _dump_extracted(result.contacts),
         "clients": _dump_extracted(result.clients),
         "contracts": _dump_extracted(result.contracts),
         "projects": _dump_extracted(result.projects),
     }
+    logger.info(
+        f"Mapped result counts: "
+        + ", ".join(f"{k}={len(v)}" for k, v in mapped.items())
+    )
+    return mapped
 
 
 # ---------------------------------------------------------------------------

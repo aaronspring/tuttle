@@ -2,7 +2,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import {
   FileUp, Sparkles, Loader2, X, Check, CheckCheck,
   Trash2, ChevronDown, ChevronRight, Link2, AlertTriangle,
-  Users, Building2, FileSignature, FolderKanban,
+  Users, Building2, FileSignature, FolderKanban, Circle,
+  XCircle,
 } from "lucide-react";
 import { rpc } from "../../api/rpc";
 
@@ -17,7 +18,7 @@ interface AddressData {
 
 interface ParsedContact {
   ref: string; first_name: string; last_name: string;
-  company: string; email: string; address: AddressData;
+  company: string; email: string; address: AddressData | null;
 }
 
 interface ParsedClient {
@@ -59,14 +60,40 @@ interface ExistingEntities {
   projects: ExistingEntity[];
 }
 
+type StepStatus = "pending" | "running" | "done" | "error";
+
+interface ImportStep {
+  key: string;
+  label: string;
+  status: StepStatus;
+  error: string | null;
+}
+
 interface ExtractionResult {
-  contacts: ParsedContact[];
-  clients: ParsedClient[];
-  contracts: ParsedContract[];
-  projects: ParsedProject[];
+  steps: ImportStep[];
+  contacts?: ParsedContact[];
+  clients?: ParsedClient[];
+  contracts?: ParsedContract[];
+  projects?: ParsedProject[];
 }
 
 type Phase = "upload" | "review" | "committed";
+
+const PIPELINE_STEPS: Omit<ImportStep, "status" | "error">[] = [
+  { key: "load_config", label: "Loading LLM configuration" },
+  { key: "read_document", label: "Reading document" },
+  { key: "connect_llm", label: "Connecting to LLM" },
+  { key: "extract_entities", label: "Extracting entities with AI" },
+  { key: "map_results", label: "Processing results" },
+];
+
+function makeSteps(upTo: number, running: number): ImportStep[] {
+  return PIPELINE_STEPS.map((s, i) => ({
+    ...s,
+    status: i < upTo ? "done" : i === running ? "running" : "pending",
+    error: null,
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Main View
@@ -76,6 +103,7 @@ export function ContractImportView() {
   const [phase, setPhase] = useState<Phase>("upload");
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [importSteps, setImportSteps] = useState<ImportStep[]>([]);
 
   const [contacts, setContacts] = useState<ImportEntity<ParsedContact>[]>([]);
   const [clients, setClients] = useState<ImportEntity<ParsedClient>[]>([]);
@@ -96,6 +124,15 @@ export function ContractImportView() {
   async function handleFile(file: File) {
     setParsing(true);
     setParseError(null);
+
+    // Show optimistic client-side step progression while the RPC runs.
+    // Steps 0-2 (config, read, connect) are sub-second on the backend;
+    // step 3 (extract) is the long LLM call.
+    setImportSteps(makeSteps(0, 0));
+    const t1 = setTimeout(() => setImportSteps(makeSteps(1, 1)), 300);
+    const t2 = setTimeout(() => setImportSteps(makeSteps(2, 2)), 600);
+    const t3 = setTimeout(() => setImportSteps(makeSteps(3, 3)), 1000);
+
     try {
       const buffer = await file.arrayBuffer();
       const base64 = btoa(
@@ -104,17 +141,24 @@ export function ContractImportView() {
       const res = await rpc<ExtractionResult>("llm.parse_contract_document", {
         file_base64: base64, file_name: file.name,
       });
-      if (res.ok && res.data) {
+
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
+      const data = res.data ?? (res as unknown as { data: ExtractionResult }).data;
+      if (data?.steps) setImportSteps(data.steps);
+
+      if (res.ok && data?.contacts) {
         const ex = existing;
-        setContacts(res.data.contacts.map((c) => autoMatch(c, ex?.contacts, "first_name", "last_name")));
-        setClients(res.data.clients.map((c) => autoMatch(c, ex?.clients, "name")));
-        setContracts(res.data.contracts.map((c) => autoMatch(c, ex?.contracts, "title")));
-        setProjects(res.data.projects.map((c) => autoMatch(c, ex?.projects, "title")));
+        setContacts(data.contacts.map((c) => autoMatch(c, ex?.contacts, "first_name", "last_name")));
+        setClients((data.clients ?? []).map((c) => autoMatch(c, ex?.clients, "name")));
+        setContracts((data.contracts ?? []).map((c) => autoMatch(c, ex?.contracts, "title")));
+        setProjects((data.projects ?? []).map((c) => autoMatch(c, ex?.projects, "title")));
         setPhase("review");
       } else {
-        setParseError(res.error || "Failed to parse document.");
+        const failedStep = data?.steps?.find((s: ImportStep) => s.status === "error");
+        setParseError(failedStep?.error || res.error || "Failed to parse document.");
       }
     } catch (err) {
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
       setParseError(String(err));
     }
     setParsing(false);
@@ -124,6 +168,7 @@ export function ContractImportView() {
     setPhase("upload");
     setContacts([]); setClients([]); setContracts([]); setProjects([]);
     setCommitResult(null); setCommitError(null);
+    setImportSteps([]); setParseError(null);
   }
 
   async function handleCommit() {
@@ -162,6 +207,7 @@ export function ContractImportView() {
           <UploadPhase
             parsing={parsing}
             parseError={parseError}
+            importSteps={importSteps}
             onFileSelected={handleFile}
           />
         )}
@@ -268,12 +314,72 @@ export function ContractImportView() {
 
 const ACCEPT_EXTENSIONS = [".pdf", ".txt", ".md", ".text"];
 
-function UploadPhase({ parsing, parseError, onFileSelected }: {
+function StepIcon({ status }: { status: StepStatus }) {
+  switch (status) {
+    case "done":
+      return <Check size={14} className="text-emerald-400" />;
+    case "running":
+      return <Loader2 size={14} className="animate-spin text-fuchsia-400" />;
+    case "error":
+      return <XCircle size={14} className="text-red-400" />;
+    default:
+      return <Circle size={14} className="text-tertiary/40" />;
+  }
+}
+
+function PipelineSteps({ steps, error }: { steps: ImportStep[]; error: string | null }) {
+  const hasError = steps.some((s) => s.status === "error");
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1">
+        {steps.map((step) => (
+          <div
+            key={step.key}
+            className={`flex items-start gap-3 px-3 py-2 rounded-lg transition-colors ${
+              step.status === "running" ? "bg-fuchsia-500/5" :
+              step.status === "error" ? "bg-red-500/5" :
+              ""
+            }`}
+          >
+            <div className="mt-0.5 shrink-0">
+              <StepIcon status={step.status} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm ${
+                step.status === "done" ? "text-secondary" :
+                step.status === "running" ? "text-primary font-medium" :
+                step.status === "error" ? "text-red-400 font-medium" :
+                "text-tertiary"
+              }`}>
+                {step.label}
+              </p>
+              {step.status === "error" && step.error && (
+                <p className="text-xs text-red-400/80 mt-1">{step.error}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {hasError && error && (
+        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UploadPhase({ parsing, parseError, importSteps, onFileSelected }: {
   parsing: boolean; parseError: string | null;
+  importSteps: ImportStep[];
   onFileSelected: (f: File) => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasSteps = importSteps.length > 0;
+  const hasError = importSteps.some((s) => s.status === "error");
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragOver(false);
@@ -292,7 +398,7 @@ function UploadPhase({ parsing, parseError, onFileSelected }: {
         </p>
       </div>
 
-      {!parsing && (
+      {!parsing && !hasSteps && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -311,17 +417,31 @@ function UploadPhase({ parsing, parseError, onFileSelected }: {
         </div>
       )}
 
-      {parsing && (
-        <div className="flex items-center justify-center gap-3 py-10">
-          <Loader2 size={20} className="animate-spin text-fuchsia-400" />
-          <span className="text-sm text-secondary">Analyzing document with AI...</span>
+      {(parsing || hasSteps) && (
+        <div className="rounded-xl border border-border-subtle bg-bg-card p-5">
+          {hasSteps ? (
+            <PipelineSteps steps={importSteps} error={parseError} />
+          ) : (
+            <div className="flex items-center justify-center gap-3 py-6">
+              <Loader2 size={20} className="animate-spin text-fuchsia-400" />
+              <span className="text-sm text-secondary">Preparing...</span>
+            </div>
+          )}
         </div>
       )}
 
-      {parseError && (
+      {!hasSteps && parseError && (
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
           {parseError}
         </div>
+      )}
+
+      {hasError && (
+        <label className="flex items-center gap-2 mx-auto px-4 py-2 rounded-lg text-sm font-medium text-fuchsia-400 hover:bg-fuchsia-500/10 border border-fuchsia-400/30 transition-colors cursor-pointer">
+          <FileUp size={14} /> Try Again
+          <input type="file" className="hidden"
+            accept=".pdf,.txt,.md,.text" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelected(f); }} />
+        </label>
       )}
     </div>
   );
@@ -529,12 +649,13 @@ function ContactCard({ item, onUpdate, existing }: {
 }) {
   const d = item.data;
   const ex = item.existingData;
+  const addr = d.address ?? { street: "", number: "", city: "", postal_code: "", country: "" };
 
   function set(field: keyof ParsedContact, value: string) {
     onUpdate({ ...item, data: { ...d, [field]: value } });
   }
   function setAddr(field: string, value: string) {
-    onUpdate({ ...item, data: { ...d, address: { ...d.address, [field]: value } } });
+    onUpdate({ ...item, data: { ...d, address: { ...addr, [field]: value } } });
   }
 
   return (
@@ -546,11 +667,11 @@ function ContactCard({ item, onUpdate, existing }: {
         <AiField label="Email" value={d.email} dbValue={ex?.email as string} onChange={(v) => set("email", v)} />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <AiField label="Street" value={d.address.street} onChange={(v) => setAddr("street", v)} />
-        <AiField label="Number" value={d.address.number} onChange={(v) => setAddr("number", v)} />
-        <AiField label="City" value={d.address.city} onChange={(v) => setAddr("city", v)} />
-        <AiField label="Postal Code" value={d.address.postal_code} onChange={(v) => setAddr("postal_code", v)} />
-        <AiField label="Country" value={d.address.country} onChange={(v) => setAddr("country", v)} />
+        <AiField label="Street" value={addr.street} onChange={(v) => setAddr("street", v)} />
+        <AiField label="Number" value={addr.number} onChange={(v) => setAddr("number", v)} />
+        <AiField label="City" value={addr.city} onChange={(v) => setAddr("city", v)} />
+        <AiField label="Postal Code" value={addr.postal_code} onChange={(v) => setAddr("postal_code", v)} />
+        <AiField label="Country" value={addr.country} onChange={(v) => setAddr("country", v)} />
       </div>
     </div>
   );
@@ -680,15 +801,16 @@ function ProjectCard({ item, onUpdate, existing, importedContracts }: {
 // ---------------------------------------------------------------------------
 
 function AiField({ label, value, dbValue, onChange, type = "text" }: {
-  label: string; value: string; dbValue?: string;
+  label: string; value: string | null | undefined; dbValue?: string;
   onChange: (v: string) => void; type?: string;
 }) {
-  const differs = dbValue != null && dbValue !== "" && value !== dbValue;
+  const safeValue = value ?? "";
+  const differs = dbValue != null && dbValue !== "" && safeValue !== dbValue;
 
   return (
     <div>
       <label className="block text-xs text-fuchsia-300/70 mb-0.5">{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
+      <input type={type} value={safeValue} onChange={(e) => onChange(e.target.value)}
         className={`w-full px-2.5 py-1.5 rounded-md text-sm bg-bg-card text-primary outline-none
           focus:border-fuchsia-400 transition-colors placeholder:text-muted border ${
           differs ? "border-amber-400/60" : "border-fuchsia-400/30"

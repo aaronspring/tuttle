@@ -44,6 +44,16 @@ class LlmIntent:
         result = _llm.parse_contract_document(
             file_base64,
             file_name,
-            _llm.load_config(),
         )
-        return IntentResult(was_intent_successful=True, data=result)
+        all_done = all(s["status"] == "done" for s in result.get("steps", []))
+        if all_done:
+            return IntentResult(was_intent_successful=True, data=result)
+        failed = next(
+            (s for s in result.get("steps", []) if s["status"] == "error"),
+            None,
+        )
+        return IntentResult(
+            was_intent_successful=False,
+            data=result,
+            error_msg=failed["error"] if failed else "Import failed.",
+        )
