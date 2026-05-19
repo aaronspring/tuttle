@@ -83,7 +83,8 @@ const PIPELINE_STEPS: Omit<ImportStep, "status" | "error">[] = [
   { key: "load_config", label: "Loading LLM configuration" },
   { key: "read_document", label: "Reading document" },
   { key: "connect_llm", label: "Connecting to LLM" },
-  { key: "extract_entities", label: "Extracting entities with AI" },
+  { key: "summarize_document", label: "Analysing document" },
+  { key: "extract_entities", label: "Extracting structured entities" },
   { key: "map_results", label: "Processing results" },
 ];
 
@@ -125,9 +126,9 @@ export function ContractImportView() {
     setParsing(true);
     setParseError(null);
 
-    // Show optimistic client-side step progression while the RPC runs.
-    // Steps 0-2 (config, read, connect) are sub-second on the backend;
-    // step 3 (extract) is the long LLM call.
+    // Optimistic client-side step progression while the synchronous RPC runs.
+    // Steps 0-2 (config, read, connect) are sub-second;
+    // step 3 (summarize) and step 4 (extract) are the two LLM passes.
     setImportSteps(makeSteps(0, 0));
     const t1 = setTimeout(() => setImportSteps(makeSteps(1, 1)), 300);
     const t2 = setTimeout(() => setImportSteps(makeSteps(2, 2)), 600);
@@ -530,8 +531,8 @@ function EntitySection<T extends { ref: string }>({ icon, title, items, setItems
 
   return (
     <div>
-      <button onClick={() => setCollapsed((c) => !c)}
-        className="flex items-center gap-2 w-full py-2 text-left group">
+      <div onClick={() => setCollapsed((c) => !c)}
+        className="flex items-center gap-2 w-full py-2 text-left group cursor-pointer" role="button">
         {collapsed ? <ChevronRight size={14} className="text-tertiary" /> : <ChevronDown size={14} className="text-tertiary" />}
         <span className="text-tertiary">{icon}</span>
         <span className="text-sm font-semibold">{title}</span>
@@ -546,7 +547,7 @@ function EntitySection<T extends { ref: string }>({ icon, title, items, setItems
             Accept All
           </button>
         )}
-      </button>
+      </div>
 
       {!collapsed && (
         <div className="space-y-3 ml-6">
@@ -611,7 +612,7 @@ function MatchBadge<T extends { ref: string }>({ item, existing, onChangeMatch }
             : "text-fuchsia-400 bg-fuchsia-500/10 border border-fuchsia-400/30"
         }`}
       >
-        {matched ? <><Link2 size={11} /> Matched: {matchLabel}</> : <><Sparkles size={11} /> New</>}
+        {matched ? <><Link2 size={11} /> Update: {matchLabel}</> : <><Sparkles size={11} /> Will create</>}
         <ChevronDown size={11} />
       </button>
 
@@ -619,7 +620,7 @@ function MatchBadge<T extends { ref: string }>({ item, existing, onChangeMatch }
         <div className="absolute top-full left-0 mt-1 z-50 bg-bg-sidebar border border-border-subtle rounded-lg shadow-lg py-1 min-w-[200px] max-h-48 overflow-y-auto">
           <button onClick={() => { onChangeMatch(null); setOpen(false); }}
             className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${!matched ? "text-fuchsia-400 font-medium" : "text-secondary hover:bg-bg-hover"}`}>
-            Create new
+            Create as new record
           </button>
           {existing.map((e) => {
             const label = (e.name || e.title || `${e.first_name || ""} ${e.last_name || ""}`.trim() || `#${e.id}`) as string;
@@ -826,12 +827,13 @@ function AiField({ label, value, dbValue, onChange, type = "text" }: {
 
 function RefDropdown({ label, currentRef, options, onChange, hint }: {
   label: string;
-  currentRef: string;
+  currentRef: string | null | undefined;
   options: { ref: string; label: string }[];
   onChange: (ref: string) => void;
   hint?: string;
 }) {
-  const noLink = !currentRef || !options.some((o) => o.ref === currentRef);
+  const safeRef = currentRef ?? "";
+  const noLink = !safeRef || !options.some((o) => o.ref === safeRef);
 
   return (
     <div>
@@ -844,7 +846,7 @@ function RefDropdown({ label, currentRef, options, onChange, hint }: {
         )}
       </label>
       <select
-        value={currentRef}
+        value={safeRef}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-2.5 py-1.5 rounded-md text-sm bg-bg-card text-primary border border-fuchsia-400/30 outline-none focus:border-fuchsia-400 transition-colors"
       >

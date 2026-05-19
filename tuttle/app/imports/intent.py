@@ -166,10 +166,44 @@ def _save_entity(
     summary["created"].append(label)
 
 
+def _coerce_value(value: Any, annotation: Any) -> Any:
+    """Coerce a JSON value to the expected Python type."""
+    if value is None or value == "":
+        return None
+    origin = getattr(annotation, "__origin__", None)
+    args = getattr(annotation, "__args__", ())
+    if origin is not None and type(None) in args:
+        inner = next((a for a in args if a is not type(None)), None)
+        if inner is not None:
+            return _coerce_value(value, inner)
+    if annotation is datetime.date or annotation == datetime.date:
+        if isinstance(value, str):
+            return datetime.date.fromisoformat(value)
+    if annotation is Decimal or (
+        hasattr(annotation, "__supertype__")
+        and issubclass(getattr(annotation, "__supertype__", type), Decimal)
+    ):
+        if isinstance(value, (int, float, str)):
+            return Decimal(str(value))
+    return value
+
+
 def _model_fields(data: dict, model_cls: type) -> dict:
-    """Filter a dict to only keys that are valid model fields, excluding meta."""
+    """Filter a dict to only keys that are valid model fields, excluding meta.
+
+    Coerces date strings and decimals to their Python types.
+    """
     valid = set(model_cls.model_fields.keys()) - {"id"}
-    return {k: v for k, v in data.items() if k in valid and k not in _IMPORT_META}
+    result = {}
+    for k, v in data.items():
+        if k not in valid or k in _IMPORT_META:
+            continue
+        field_info = model_cls.model_fields.get(k)
+        if field_info and field_info.annotation is not None:
+            v = _coerce_value(v, field_info.annotation)
+        if v is not None:
+            result[k] = v
+    return result
 
 
 def _entity_label(model_cls: type, item: dict) -> str:

@@ -456,23 +456,47 @@ class ContractDocumentExtractionResult(BaseModel):
     )
 
 
-_CONTRACT_DOC_PROMPT = (
-    "You are extracting structured data from a contract or service-agreement document.\n"
-    "Extract ALL of the following entity types:\n\n"
-    "CONTACTS: Every person mentioned by name (signatories, contact persons, managers). "
-    "Include their name, company, email, and address if available.\n\n"
-    "CLIENTS: Every company or organisation that is a party to the contract. "
-    "Link each client to its contact person via contact_ref.\n\n"
-    "CONTRACTS: The contractual agreement(s) described. "
-    "Extract the rate, currency, unit of time, billing cycle, volume, dates, "
-    "VAT rate, and payment terms. Link each contract to its client via client_ref.\n\n"
-    "PROJECTS: Any project, work package, or deliverable described. "
-    "Link each project to its contract via contract_ref.\n\n"
-    "RULES:\n"
-    "- Populate EVERY field you can find evidence for; only use null for truly unknown values.\n"
-    "- Use ref strings (contact_1, client_1, contract_1, project_1) to cross-link entities.\n"
-    "- Dates must be in YYYY-MM-DD format.\n"
-    "- You MUST return at least one contact and one client if the document mentions any parties.\n\n"
+def _describe_entity_fields(model_cls: type, skip: set = {"ref"}) -> str:  # noqa: B006
+    """Build a field-list description from a Pydantic model's Field metadata."""
+    parts = []
+    for name, info in model_cls.model_fields.items():
+        if name in skip or name.endswith("_ref"):
+            continue
+        desc = info.description
+        parts.append(f"{name} ({desc})" if desc else name)
+    return ", ".join(parts)
+
+
+def _build_summary_prompt() -> str:
+    """Generate the Pass-1 summary prompt from the extraction model definitions."""
+    sections = []
+    for label, model_cls in ContractDocumentExtractionResult.model_fields.items():
+        field_info = ContractDocumentExtractionResult.model_fields[label]
+        entity_desc = field_info.description or label
+        annotation = field_info.annotation
+        item_type = getattr(annotation, "__args__", (None,))[0]  # type: ignore[index]
+        fields = _describe_entity_fields(item_type)
+        sections.append(
+            f"{label.upper()} — {entity_desc}:\n  For each, extract: {fields}"
+        )
+
+    return (
+        "You are analysing a contract or service-agreement document for a freelancer.\n"
+        "Read the document carefully and list ALL facts relevant to the following categories.\n"
+        "Be thorough — include every detail you can find, even if approximate.\n\n"
+        + "\n\n".join(sections)
+        + "\n\nFormat all dates as YYYY-MM-DD. "
+        "Write one fact per line. Do not omit any details.\n\n"
+    )
+
+
+_CONTRACT_DOC_SUMMARY_PROMPT = _build_summary_prompt()
+
+_CONTRACT_DOC_EXTRACT_PROMPT = (
+    "Convert the following entity summary into structured JSON.\n"
+    "Use ref strings (contact_1, client_1, contract_1, project_1) to cross-link entities.\n"
+    "Populate EVERY field you can; only use null for truly unknown values.\n"
+    "Dates must be YYYY-MM-DD.\n\n"
 )
 
 
@@ -480,7 +504,8 @@ _IMPORT_STEPS = [
     {"key": "load_config", "label": "Loading LLM configuration"},
     {"key": "read_document", "label": "Reading document"},
     {"key": "connect_llm", "label": "Connecting to LLM"},
-    {"key": "extract_entities", "label": "Extracting entities with AI"},
+    {"key": "summarize_document", "label": "Analysing document"},
+    {"key": "extract_entities", "label": "Extracting structured entities"},
     {"key": "map_results", "label": "Processing results"},
 ]
 
@@ -544,14 +569,11 @@ def parse_contract_document(
     _mark("connect_llm", "running")
     try:
         llm = _get_llm(config)
-        sllm = llm.as_structured_llm(output_cls=ContractDocumentExtractionResult)
         _mark("connect_llm", "done")
     except Exception as e:
         logger.exception("parse_contract_document: connect_llm failed")
         return _fail("connect_llm", f"Could not connect to LLM: {e}")
 
-    # Step 4: Extract entities
-    _mark("extract_entities", "running")
     text_len = len(text)
     est_tokens = text_len // 4
     diag = (
@@ -559,32 +581,8 @@ def parse_contract_document(
         f"text={text_len} chars (~{est_tokens} tokens), "
         f"timeout={config.request_timeout}s"
     )
-    logger.info(f"LLM extraction starting: {diag}")
-    t0 = time.monotonic()
-    try:
-        prompt = (
-            _CONTRACT_DOC_PROMPT
-            + "--- DOCUMENT START ---\n"
-            + text
-            + "\n--- DOCUMENT END ---"
-        )
-        response = sllm.complete(prompt)
-        elapsed = time.monotonic() - t0
-        logger.info(f"LLM extraction completed in {elapsed:.1f}s: {diag}")
-        raw_text = response.text
-        logger.info(f"LLM raw response ({len(raw_text)} chars): {raw_text[:2000]}")
-        extracted: ContractDocumentExtractionResult = response.raw
-        logger.info(
-            f"Parsed extraction: "
-            f"contacts={len(extracted.contacts)}, "
-            f"clients={len(extracted.clients)}, "
-            f"contracts={len(extracted.contracts)}, "
-            f"projects={len(extracted.projects)}"
-        )
-        _mark("extract_entities", "done")
-    except Exception as e:
-        elapsed = time.monotonic() - t0
-        logger.exception(f"LLM extraction failed after {elapsed:.1f}s: {diag}")
+
+    def _classify_llm_error(e: Exception, elapsed: float, step_key: str):
         msg = str(e)
         low = msg.lower()
         if "timed out" in low or "timeout" in low:
@@ -606,7 +604,66 @@ def parse_contract_document(
             )
         elif "connection" in low or "refused" in low:
             msg = f"Could not reach the LLM server. Is Ollama running? ({msg})"
-        return _fail("extract_entities", msg)
+        return _fail(step_key, msg)
+
+    # Step 4a: Summarise document (plain LLM, no schema constraint)
+    _mark("summarize_document", "running")
+    logger.info(f"Pass 1 — summarise starting: {diag}")
+    t0 = time.monotonic()
+    try:
+        summary_prompt = (
+            _CONTRACT_DOC_SUMMARY_PROMPT
+            + "--- DOCUMENT START ---\n"
+            + text
+            + "\n--- DOCUMENT END ---"
+        )
+        summary_response = llm.complete(summary_prompt)
+        summary_text = str(summary_response)
+        elapsed = time.monotonic() - t0
+        logger.info(
+            f"Pass 1 — summarise completed in {elapsed:.1f}s "
+            f"({len(summary_text)} chars)"
+        )
+        logger.info(f"Summary:\n{summary_text[:3000]}")
+        _mark("summarize_document", "done")
+    except Exception as e:
+        elapsed = time.monotonic() - t0
+        logger.exception(f"Pass 1 failed after {elapsed:.1f}s: {diag}")
+        return _classify_llm_error(e, elapsed, "summarize_document")
+
+    # Step 4b: Extract structured entities from the summary
+    _mark("extract_entities", "running")
+    logger.info("Pass 2 — structured extraction starting")
+    t1 = time.monotonic()
+    try:
+        sllm = llm.as_structured_llm(output_cls=ContractDocumentExtractionResult)
+        extract_prompt = (
+            _CONTRACT_DOC_EXTRACT_PROMPT
+            + "--- SUMMARY START ---\n"
+            + summary_text
+            + "\n--- SUMMARY END ---"
+        )
+        response = sllm.complete(extract_prompt)
+        elapsed = time.monotonic() - t1
+        raw_text = response.text
+        logger.info(
+            f"Pass 2 — extraction completed in {elapsed:.1f}s "
+            f"({len(raw_text)} chars)"
+        )
+        logger.info(f"LLM raw response: {raw_text[:2000]}")
+        extracted: ContractDocumentExtractionResult = response.raw
+        logger.info(
+            f"Parsed extraction: "
+            f"contacts={len(extracted.contacts)}, "
+            f"clients={len(extracted.clients)}, "
+            f"contracts={len(extracted.contracts)}, "
+            f"projects={len(extracted.projects)}"
+        )
+        _mark("extract_entities", "done")
+    except Exception as e:
+        elapsed = time.monotonic() - t1
+        logger.exception(f"Pass 2 failed after {elapsed:.1f}s: {diag}")
+        return _classify_llm_error(e, elapsed, "extract_entities")
 
     # Step 5: Map results
     _mark("map_results", "running")
