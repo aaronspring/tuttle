@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   FileText, Send, CheckCircle, XCircle, Mail,
   Building2, FolderKanban, Calendar, Banknote, Eye, Search,
-  Plus, Clock, AlertTriangle,
+  Plus, Clock, AlertTriangle, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { rpc, readFileAsDataURL } from "../../api/rpc";
 import { str, num, bool, list as entityList, formatDate, invoiceStatus, deepStr, isReminder, reminderLevel } from "../../api/entity";
@@ -242,6 +242,18 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [toDate, setToDate] = useState(() => {
     const d = new Date(); d.setDate(0); return d.toISOString().slice(0, 10);
   });
+
+  function setMonth(year: number, month: number) {
+    setFromDate(`${year}-${String(month + 1).padStart(2, "0")}-01`);
+    const last = new Date(year, month + 1, 0);
+    setToDate(last.toISOString().slice(0, 10));
+  }
+
+  function shiftMonth(delta: number) {
+    const cur = new Date(fromDate + "T00:00:00");
+    const d = new Date(cur.getFullYear(), cur.getMonth() + delta, 1);
+    setMonth(d.getFullYear(), d.getMonth());
+  }
   const [mode, setMode] = useState<"timetracking" | "manual">("timetracking");
   const [lineItems, setLineItems] = useState<LineItem[]>([makeDefaultItem()]);
   const [hasTimeData, setHasTimeData] = useState(false);
@@ -364,22 +376,36 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
           </div>
 
           {/* Dates */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-2">
             <label className="block">
               <span className="text-[10px] font-semibold text-muted uppercase">Invoice Date</span>
               <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)}
                 className="mt-1 w-full px-2 py-1.5 rounded-md bg-bg-card border border-border-subtle text-xs text-primary" />
             </label>
-            <label className="block">
-              <span className="text-[10px] font-semibold text-muted uppercase">From</span>
-              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
-                className="mt-1 w-full px-2 py-1.5 rounded-md bg-bg-card border border-border-subtle text-xs text-primary" />
-            </label>
-            <label className="block">
-              <span className="text-[10px] font-semibold text-muted uppercase">To</span>
-              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
-                className="mt-1 w-full px-2 py-1.5 rounded-md bg-bg-card border border-border-subtle text-xs text-primary" />
-            </label>
+            <div>
+              <span className="text-[10px] font-semibold text-muted uppercase">Billing Period</span>
+              <div className="mt-1 flex items-center gap-2">
+                <button type="button" onClick={() => shiftMonth(-1)}
+                  className="p-1 rounded hover:bg-bg-hover text-secondary transition-colors" title="Previous month">
+                  <ChevronLeft size={14} />
+                </button>
+                <label className="block flex-1">
+                  <span className="text-[10px] font-semibold text-muted uppercase">From</span>
+                  <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                    className="mt-0.5 w-full px-2 py-1.5 rounded-md bg-bg-card border border-border-subtle text-xs text-primary" />
+                </label>
+                <span className="text-muted text-xs pt-3">–</span>
+                <label className="block flex-1">
+                  <span className="text-[10px] font-semibold text-muted uppercase">To</span>
+                  <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                    className="mt-0.5 w-full px-2 py-1.5 rounded-md bg-bg-card border border-border-subtle text-xs text-primary" />
+                </label>
+                <button type="button" onClick={() => shiftMonth(1)}
+                  className="p-1 rounded hover:bg-bg-hover text-secondary transition-colors" title="Next month">
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Line items editor */}
