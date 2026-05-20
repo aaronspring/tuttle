@@ -365,8 +365,10 @@ function ClientForm({ client, contacts, onSave, onCancel, error }: {
         </div>
       </div>
 
+      <p className="text-xs text-muted"><span className="text-accent">*</span> Required</p>
+
       <Section title="Client">
-        <FormField label="Name *" value={name} onChange={setName} autoFocus required />
+        <FormField label="Name" value={name} onChange={setName} autoFocus required />
       </Section>
 
       <Section title="Address">
@@ -413,7 +415,7 @@ function FormField({ label, value, onChange, type = "text", autoFocus, required 
 }) {
   return (
     <div>
-      <label className="block text-xs text-tertiary mb-1">{label}</label>
+      <label className="block text-xs text-tertiary mb-1">{label}{required && <span className="text-accent ml-0.5">*</span>}</label>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} required={required}
         className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none
           focus:border-accent transition-colors placeholder:text-muted" />

@@ -451,14 +451,16 @@ function ProjectForm({ project, contracts, onSave, onCancel, error }: {
         </div>
       </div>
 
+      <p className="text-xs text-muted"><span className="text-accent">*</span> Required</p>
+
       {(validationError || error) && (
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">{validationError || error}</div>
       )}
 
       <Section title="Project">
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Title *" value={form.title} onChange={(v) => update("title", v)} autoFocus />
-          <FormField label="Tag *" value={form.tag} onChange={(v) => update("tag", v)} />
+          <FormField label="Title" value={form.title} onChange={(v) => update("title", v)} autoFocus required />
+          <FormField label="Tag" value={form.tag} onChange={(v) => update("tag", v)} required />
         </div>
         <div className="mt-3">
           <label className="block text-xs text-tertiary mb-1">Description</label>
@@ -504,13 +506,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function FormField({ label, value, onChange, autoFocus }: {
-  label: string; value: string; onChange: (v: string) => void; autoFocus?: boolean;
+function FormField({ label, value, onChange, autoFocus, required }: {
+  label: string; value: string; onChange: (v: string) => void; autoFocus?: boolean; required?: boolean;
 }) {
   return (
     <div>
-      <label className="block text-xs text-tertiary mb-1">{label}</label>
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus}
+      <label className="block text-xs text-tertiary mb-1">{label}{required && <span className="text-accent ml-0.5">*</span>}</label>
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} required={required}
         className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors" />
     </div>
   );

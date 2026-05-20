@@ -482,6 +482,8 @@ function ContractForm({ contract, clients, defaultCurrency, onSave, onCancel, er
         </div>
       </div>
 
+      <p className="text-xs text-muted"><span className="text-accent">*</span> Required</p>
+
       {(validationError || error) && (
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">{validationError || error}</div>
       )}
@@ -489,7 +491,7 @@ function ContractForm({ contract, clients, defaultCurrency, onSave, onCancel, er
       <Section title="Basic">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
-            <label className="block text-xs text-tertiary mb-1">Title *</label>
+            <label className="block text-xs text-tertiary mb-1">Title <span className="text-accent">*</span></label>
             <input type="text" value={form.title} onChange={(e) => update("title", e.target.value)} autoFocus
               className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors" />
           </div>
@@ -507,7 +509,7 @@ function ContractForm({ contract, clients, defaultCurrency, onSave, onCancel, er
       <Section title="Rates">
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-tertiary mb-1">Rate *</label>
+            <label className="block text-xs text-tertiary mb-1">Rate <span className="text-accent">*</span></label>
             <input type="number" step="0.01" value={form.rate || ""} onChange={(e) => update("rate", parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none focus:border-accent transition-colors" />
           </div>

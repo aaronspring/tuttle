@@ -328,6 +328,8 @@ export function SettingsView() {
             </div>
           )}
 
+          <p className="text-xs text-muted"><span className="text-accent">*</span> Required</p>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className={labelCls}>Full name <span className="text-accent">*</span></label>
