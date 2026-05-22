@@ -114,7 +114,7 @@ reset:
 
 # ── Release ─────────────────────────────────────────────────────────────────
 
-# Bump version, commit, tag, push. Uses bump-my-version (config in pyproject.toml).
+# Bump version, commit, tag, push to origin, create GitHub release.
 #
 #   just release patch                  3.1.0 → 3.1.1
 #   just release minor                  3.1.0 → 3.2.0
@@ -126,11 +126,13 @@ reset:
 release part *flags="":
     #!/usr/bin/env bash
     set -euo pipefail
+    dry_run=0
     pre=""
     bump_flags=()
     for arg in {{flags}}; do
         if [[ "$arg" == "--pre" ]]; then pre="next"; continue; fi
         if [[ "$pre" == "next" ]]; then pre="$arg"; continue; fi
+        if [[ "$arg" == "--dry-run" ]]; then dry_run=1; fi
         bump_flags+=("$arg")
     done
     if [[ -n "$pre" && "$pre" != "next" ]]; then
@@ -138,3 +140,12 @@ release part *flags="":
         bump_flags+=(--new-version "${base}${pre}1")
     fi
     {{python}} -m bumpversion bump {{part}} "${bump_flags[@]}"
+    if [[ "$dry_run" -eq 1 ]]; then exit 0; fi
+    tag=$(git describe --tags --abbrev=0)
+    git push origin main
+    git push origin "$tag"
+    gh_flags=(--generate-notes)
+    if [[ "$tag" == *a* || "$tag" == *b* || "$tag" == *rc* ]]; then
+        gh_flags+=(--prerelease)
+    fi
+    gh release create "$tag" "${gh_flags[@]}"
