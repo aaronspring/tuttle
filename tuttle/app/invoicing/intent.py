@@ -14,8 +14,10 @@ from ..core.abstractions import Intent
 from ..core.intent_result import IntentResult
 from ..preferences.intent import PreferencesIntent
 from ..preferences.model import (
+    DEFAULT_E_INVOICE_PROFILE,
     DEFAULT_INVOICE_NUMBER_SCHEME,
     DEFAULT_INVOICE_TEMPLATE,
+    E_INVOICE_PROFILES,
     INVOICE_NUMBER_SCHEMES,
     INVOICE_TEMPLATES,
     PreferencesStorageKeys,
@@ -76,6 +78,10 @@ class InvoicingIntent(Intent):
             app_db.get_setting(PreferencesStorageKeys.invoice_number_scheme_key.value)
             or DEFAULT_INVOICE_NUMBER_SCHEME
         )
+        e_invoice_profile = (
+            app_db.get_setting(PreferencesStorageKeys.e_invoice_profile_key.value)
+            or DEFAULT_E_INVOICE_PROFILE
+        )
 
         def _to_date(v):
             return v if isinstance(v, date) else _dt.date.fromisoformat(v)
@@ -92,6 +98,7 @@ class InvoicingIntent(Intent):
             template_name=template_name,
             number_scheme=number_scheme,
             with_timesheet=with_timesheet,
+            e_invoice_profile=e_invoice_profile or None,
         )
 
     # -- Status toggles (accept id, fetch internally) --------------------------
@@ -165,6 +172,9 @@ class InvoicingIntent(Intent):
     def available_number_schemes(self) -> IntentResult:
         return IntentResult(was_intent_successful=True, data=INVOICE_NUMBER_SCHEMES)
 
+    def available_e_invoice_profiles(self) -> IntentResult:
+        return IntentResult(was_intent_successful=True, data=E_INVOICE_PROFILES)
+
     def get_user(self) -> IntentResult[User]:
         user = self._user_data_source.get_user()
         return IntentResult(was_intent_successful=True, data=user)
@@ -219,6 +229,7 @@ class InvoicingIntent(Intent):
         template_name: Optional[str] = None,
         number_scheme: str = DEFAULT_INVOICE_NUMBER_SCHEME,
         with_timesheet: bool = True,
+        e_invoice_profile: Optional[str] = None,
     ) -> IntentResult[Invoice]:
         """Create a new invoice.
 
@@ -337,6 +348,7 @@ class InvoicingIntent(Intent):
                         template_name=resolved_template,
                         only_final=True,
                         language=language,
+                        e_invoice_profile=e_invoice_profile,
                     )
                 except Exception as ex:
                     logger.error(f"Error rendering invoice for {project.title}: {ex}")
