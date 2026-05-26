@@ -59,12 +59,14 @@ interface InvoicingPrefs {
   invoice_template: string;
   language: string;
   invoice_number_scheme: string;
+  e_invoice_profile: string;
 }
 
 const DEFAULT_INVOICING: InvoicingPrefs = {
   invoice_template: "invoice-modern",
   language: "en",
   invoice_number_scheme: "daily",
+  e_invoice_profile: "EN16931",
 };
 
 const SCHEME_EXAMPLES: Record<string, string> = {
@@ -111,6 +113,7 @@ export function SettingsView() {
   const [availableTemplates, setAvailableTemplates] = useState<Record<string, string>>({});
   const [availableLanguages, setAvailableLanguages] = useState<Record<string, string>>({});
   const [availableSchemes, setAvailableSchemes] = useState<Record<string, string>>({});
+  const [availableEInvoiceProfiles, setAvailableEInvoiceProfiles] = useState<Record<string, string>>({});
   const [invoicingSaving, setInvoicingSaving] = useState(false);
   const [invoicingStatus, setInvoicingStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
@@ -249,16 +252,18 @@ export function SettingsView() {
   // -- Invoicing preferences -----------------------------------------------
 
   async function loadInvoicingPrefs() {
-    const [prefsRes, tmplRes, langRes, schemeRes] = await Promise.all([
+    const [prefsRes, tmplRes, langRes, schemeRes, eInvRes] = await Promise.all([
       rpc<InvoicingPrefs>("preferences.get"),
       rpc<Record<string, string>>("invoicing.available_templates"),
       rpc<Record<string, string>>("invoicing.available_languages"),
       rpc<Record<string, string>>("invoicing.available_number_schemes"),
+      rpc<Record<string, string>>("invoicing.available_e_invoice_profiles"),
     ]);
     if (prefsRes.ok && prefsRes.data) setInvoicing(prefsRes.data);
     if (tmplRes.ok && tmplRes.data) setAvailableTemplates(tmplRes.data);
     if (langRes.ok && langRes.data) setAvailableLanguages(langRes.data);
     if (schemeRes.ok && schemeRes.data) setAvailableSchemes(schemeRes.data);
+    if (eInvRes.ok && eInvRes.data) setAvailableEInvoiceProfiles(eInvRes.data);
   }
 
   async function handleSaveInvoicing() {
@@ -268,6 +273,7 @@ export function SettingsView() {
       invoice_template: invoicing.invoice_template,
       language: invoicing.language,
       invoice_number_scheme: invoicing.invoice_number_scheme,
+      e_invoice_profile: invoicing.e_invoice_profile,
     });
     setInvoicingStatus(res.ok ? { type: "success", msg: "Invoicing preferences saved." } : { type: "error", msg: res.error || "Failed to save." });
     setInvoicingSaving(false);
@@ -523,6 +529,22 @@ export function SettingsView() {
             </select>
             <p className="mt-1 text-xs text-muted">
               Example: <span className="font-mono text-primary">{SCHEME_EXAMPLES[invoicing.invoice_number_scheme] || "—"}</span>
+            </p>
+          </div>
+
+          <div>
+            <label className={labelCls}>Electronic invoice (e-invoice)</label>
+            <select
+              className={inputCls}
+              value={invoicing.e_invoice_profile}
+              onChange={(e) => setInvoicing((p) => ({ ...p, e_invoice_profile: e.target.value }))}
+            >
+              {Object.entries(availableEInvoiceProfiles).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              When enabled, invoices include machine-readable data (ZUGFeRD/Factur-X) embedded in the PDF. "Standard" works for most B2B invoicing. Use "XRechnung" only for German government clients.
             </p>
           </div>
 

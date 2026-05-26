@@ -3,6 +3,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 import shutil
 import glob
 import jinja2
@@ -231,6 +232,7 @@ def render_invoice(
     template_name: str = "invoice-modern",
     only_final: bool = False,
     language: str = "en",
+    e_invoice_profile: Optional[str] = None,
 ):
     """Render an Invoice using an HTML template.
 
@@ -242,6 +244,8 @@ def render_invoice(
         template_name: Directory name under templates/ (e.g. "invoice-modern").
         only_final: Keep only the final output file and remove intermediates.
         language: Language code for labels and date/currency formatting ("en", "de", "es").
+        e_invoice_profile: If set, embed ZUGFeRD/Factur-X XML into the PDF.
+            One of "EN16931", "EXTENDED", "BASIC", "MINIMUM", "XRECHNUNG", or None.
     """
     babel_locale = LANGUAGE_TO_LOCALE.get(language, "en_US")
     labels = INVOICE_LABELS.get(language, INVOICE_LABELS["en"])
@@ -328,11 +332,21 @@ def render_invoice(
         css_paths = [
             path for path in glob.glob(f"{invoice_dir}/**/*.css", recursive=True)
         ]
+        pdf_out = invoice_dir / Path(f"{invoice.prefix}.pdf")
         convert_html_to_pdf(
             in_path=str(invoice_path),
             css_paths=css_paths,
-            out_path=invoice_dir / Path(f"{invoice.prefix}.pdf"),
+            out_path=pdf_out,
         )
+        if e_invoice_profile and not invoice.is_reminder:
+            from .einvoice import embed_zugferd_in_pdf
+
+            embed_zugferd_in_pdf(
+                pdf_path=str(pdf_out),
+                invoice=invoice,
+                user=user,
+                profile=e_invoice_profile,
+            )
     if only_final:
         final_output_path = out_dir / Path(f"{invoice.prefix}.{document_format}")
         if document_format == "pdf":

@@ -329,6 +329,10 @@ class Client(RpcMixin, SQLModel, table=True):
         description="Name of the client.",
         sa_column_kwargs={"unique": True},
     )
+    vat_number: Optional[str] = Field(
+        default=None,
+        description="VAT identification number of the client (for e-invoicing).",
+    )
     # Client n:1 Address (optional, for direct invoicing)
     address_id: Optional[int] = Field(default=None, foreign_key="address.id")
     address: Optional[Address] = Relationship(

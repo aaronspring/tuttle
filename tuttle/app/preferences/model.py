@@ -23,6 +23,16 @@ INVOICE_NUMBER_SCHEMES = {
 
 DEFAULT_INVOICE_NUMBER_SCHEME = "daily"
 
+E_INVOICE_PROFILES = {
+    "": "Off (plain PDF only)",
+    "EN16931": "Standard (recommended)",
+    "XRECHNUNG": "XRechnung (German public sector)",
+    "BASIC": "Basic (minimal data)",
+    "EXTENDED": "Extended (full detail)",
+}
+
+DEFAULT_E_INVOICE_PROFILE = "EN16931"
+
 
 @dataclass
 class Preferences:
@@ -32,6 +42,7 @@ class Preferences:
     language: str = ""
     invoice_template: str = DEFAULT_INVOICE_TEMPLATE
     invoice_number_scheme: str = DEFAULT_INVOICE_NUMBER_SCHEME
+    e_invoice_profile: str = DEFAULT_E_INVOICE_PROFILE
 
 
 class PreferencesStorageKeys(Enum):
@@ -43,6 +54,7 @@ class PreferencesStorageKeys(Enum):
     language_key = "preferred_language"
     invoice_template_key = "preferred_invoice_template"
     invoice_number_scheme_key = "preferred_invoice_number_scheme"
+    e_invoice_profile_key = "preferred_e_invoice_profile"
 
     def __str__(self) -> str:
         return str(self.value)

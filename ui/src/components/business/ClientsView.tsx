@@ -57,6 +57,7 @@ export function ClientsView() {
     if (duplicate) { setSaveError("A client with this name already exists."); return; }
     const client: Record<string, unknown> = {
       name: data.name,
+      vat_number: data.vatNumber || null,
       invoicing_contact: data.contactId
         ? { id: data.contactId }
         : undefined,
@@ -269,6 +270,13 @@ function ClientDetail({ client, onEdit, onDelete, deleteError }: {
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">{deleteError}</div>
       )}
 
+      {str(client, "vat_number") && (
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-secondary mb-2">VAT Number</div>
+          <div className="text-sm text-primary">{str(client, "vat_number")}</div>
+        </div>
+      )}
+
       {clientAddrParts.length > 0 && (
         <div className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-wider text-secondary mb-2">Address</div>
@@ -324,6 +332,7 @@ interface ClientFormData {
   city: string;
   postalCode: string;
   country: string;
+  vatNumber: string;
 }
 
 function ClientForm({ client, contacts, onSave, onCancel, error }: {
@@ -342,6 +351,7 @@ function ClientForm({ client, contacts, onSave, onCancel, error }: {
   const [city, setCity] = useState(addr ? str(addr, "city") : "");
   const [postalCode, setPostalCode] = useState(addr ? str(addr, "postal_code") : "");
   const [country, setCountry] = useState(addr ? str(addr, "country") : "");
+  const [vatNumber, setVatNumber] = useState(client ? str(client, "vat_number") : "");
   const [saving, setSaving] = useState(false);
   const isNew = !client;
 
@@ -350,7 +360,7 @@ function ClientForm({ client, contacts, onSave, onCancel, error }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await onSave({ name, contactId, street, number, city, postalCode, country });
+    await onSave({ name, contactId, street, number, city, postalCode, country, vatNumber });
     setSaving(false);
   }
 
@@ -374,6 +384,9 @@ function ClientForm({ client, contacts, onSave, onCancel, error }: {
 
       <Section title="Client">
         <FormField label="Name" value={name} onChange={setName} autoFocus required />
+        <div className="mt-3">
+          <FormField label="VAT Number" value={vatNumber} onChange={setVatNumber} placeholder="e.g. DE123456789" />
+        </div>
       </Section>
 
       <Section title="Address">
@@ -415,13 +428,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function FormField({ label, value, onChange, type = "text", autoFocus, required }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; autoFocus?: boolean; required?: boolean;
+function FormField({ label, value, onChange, type = "text", autoFocus, required, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; autoFocus?: boolean; required?: boolean; placeholder?: string;
 }) {
   return (
     <div>
       <label className="block text-xs text-tertiary mb-1">{label}{required && <span className="text-accent ml-0.5">*</span>}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} required={required}
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} required={required} placeholder={placeholder}
         className="w-full px-3 py-2 rounded-md text-sm bg-bg-card text-primary border border-border-subtle outline-none
           focus:border-accent transition-colors placeholder:text-muted" />
     </div>

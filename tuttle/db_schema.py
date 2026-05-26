@@ -26,19 +26,33 @@ _INVOICE_REMINDER_COLUMNS = {
     "reminder_due_date": "DATE",
 }
 
+_CLIENT_EINVOICE_COLUMNS = {
+    "vat_number": "VARCHAR",
+}
+
 
 def _migrate_add_columns(engine) -> None:
     """Add missing columns to existing tables (safe for SQLite)."""
     insp = inspect(engine)
-    if "invoice" not in insp.get_table_names():
-        return
-    existing = {col["name"] for col in insp.get_columns("invoice")}
-    with engine.begin() as conn:
-        for col_name, col_def in _INVOICE_REMINDER_COLUMNS.items():
-            if col_name not in existing:
-                stmt = f"ALTER TABLE invoice ADD COLUMN {col_name} {col_def}"
-                conn.execute(text(stmt))
-                logger.info(f"Added column invoice.{col_name}")
+    table_names = insp.get_table_names()
+
+    if "invoice" in table_names:
+        existing = {col["name"] for col in insp.get_columns("invoice")}
+        with engine.begin() as conn:
+            for col_name, col_def in _INVOICE_REMINDER_COLUMNS.items():
+                if col_name not in existing:
+                    stmt = f"ALTER TABLE invoice ADD COLUMN {col_name} {col_def}"
+                    conn.execute(text(stmt))
+                    logger.info(f"Added column invoice.{col_name}")
+
+    if "client" in table_names:
+        existing = {col["name"] for col in insp.get_columns("client")}
+        with engine.begin() as conn:
+            for col_name, col_def in _CLIENT_EINVOICE_COLUMNS.items():
+                if col_name not in existing:
+                    stmt = f"ALTER TABLE client ADD COLUMN {col_name} {col_def}"
+                    conn.execute(text(stmt))
+                    logger.info(f"Added column client.{col_name}")
 
 
 def ensure_schema(db_url: str) -> None:

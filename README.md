@@ -54,6 +54,8 @@ Track the time you spend on your projects. Import from your cloud calendar (iClo
 
 Generate invoices and timesheets automatically from your time tracking data, or create invoices manually by entering the quantity of hours or days directly. Export to PDF and send via email.
 
+Invoices are generated as **Factur-X / ZUGFeRD** electronic invoices by default: machine-readable XML (EN16931) is embedded directly into the PDF, compliant with EU e-invoicing requirements without changing your workflow.
+
 <img src="assets/images/screenshot-invoices.png" width=768 />
 
 

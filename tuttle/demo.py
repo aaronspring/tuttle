@@ -187,15 +187,18 @@ def create_fake_client(
     invoicing_contact: Optional[Contact] = None,
     with_contact: bool = True,
 ) -> Client:
+    vat_number = f"DE{fake.unique.random_number(digits=9, fix_len=True)}"
     if with_contact:
         if invoicing_contact is None:
             invoicing_contact = create_fake_contact(fake)
         return Client(
             name=fake.company(),
+            vat_number=vat_number,
             invoicing_contact=invoicing_contact,
         )
     return Client(
         name=fake.company(),
+        vat_number=vat_number,
         address=create_fake_address(fake),
     )
 
@@ -412,6 +415,7 @@ def create_heating_data(
 
     central_services = Client(
         name="Central Services",
+        vat_number="BR12345678901",
         address=Address(
             street="Main Street",
             number="42",
@@ -445,7 +449,8 @@ def create_heating_data(
         name, _desc = _HEATING_CLIENTS[i]
         contact = create_heating_contact(fake, company_name=name)
         contacts.append(contact)
-        client = Client(name=name, invoicing_contact=contact)
+        vat_number = f"DE{fake.unique.random_number(digits=9, fix_len=True)}"
+        client = Client(name=name, vat_number=vat_number, invoicing_contact=contact)
         clients.append(client)
 
     # -- contracts (one per client) --------------------------------------------

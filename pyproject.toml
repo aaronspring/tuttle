@@ -41,6 +41,7 @@ dependencies = [
     "llama-index-core",
     "llama-index-llms-ollama",
     "llama-index-llms-openai-like",
+    "drafthorse",
 ]
 
 [project.scripts]
