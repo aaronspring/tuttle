@@ -6,12 +6,13 @@ on:
       - "main"
     tags:
       - "v*"
-  pull_request:
-    branches:
-      - "main"
+  merge_group:
 
 permissions:
   contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -59,8 +60,9 @@ jobs:
       env:
         CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-    # Artifacts
+    # Artifacts (skip on merge-queue validation runs)
     - uses: actions/upload-artifact@v4
+      if: github.event_name != 'merge_group'
       with:
         name: Tuttle-${{ github.ref_name }}-${{ matrix.platform }}
         path: ui/release/
