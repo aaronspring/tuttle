@@ -46,12 +46,14 @@ def build_calendar_data(
     year: int,
     month: int,
     project_tag: Optional[str] = None,
+    tag_to_title: Optional[dict] = None,
 ) -> dict:
     """Build a month-view calendar payload from a time-tracking DataFrame.
 
     Returns a dict with ``events``, ``projects`` (unique tags with hours),
     ``days`` (per-day aggregation), and ``summary`` (totals).
     """
+    tag_to_title = tag_to_title or {}
     start = datetime.date(year, month, 1)
     _, last_day = cal_mod.monthrange(year, month)
     end = datetime.date(year, month, last_day)
@@ -69,8 +71,15 @@ def build_calendar_data(
         .apply(lambda td: round(td.total_seconds() / 3600, 1))
         .to_dict()
     )
+    count_by_tag = month_df.groupby("tag").size().to_dict()
     projects = [
-        {"tag": t, "hours": h} for t, h in sorted(by_tag.items(), key=lambda x: -x[1])
+        {
+            "tag": t,
+            "title": tag_to_title.get(t, t),
+            "hours": h,
+            "event_count": int(count_by_tag.get(t, 0)),
+        }
+        for t, h in sorted(by_tag.items(), key=lambda x: -x[1])
     ]
 
     days: dict = {}

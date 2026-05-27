@@ -28,16 +28,9 @@ type CalendarData = {
   first_weekday: number;
   days_in_month: number;
   events: TimeEvent[];
-  projects: { tag: string; hours: number }[];
+  projects: { tag: string; title: string; hours: number; event_count: number }[];
   days: Record<string, DayInfo>;
   summary: { total_events: number; total_hours: number };
-};
-
-type ProjectSummary = {
-  tag: string;
-  title: string;
-  hours: number;
-  event_count: number;
 };
 
 type SystemCalendar = { id: string; title: string; source: string };
@@ -76,7 +69,6 @@ const MONTH_NAMES = [
 
 export function TimeTrackingView() {
   const [calData, setCalData] = useState<CalendarData | null>(null);
-  const [summaryData, setSummaryData] = useState<{ total_events: number; total_hours: number; projects: ProjectSummary[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -94,12 +86,8 @@ export function TimeTrackingView() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [calRes, sumRes] = await Promise.all([
-      rpc<CalendarData>("timetracking.get_calendar_data", { year, month, project_tag: filterTag }),
-      rpc<{ total_events: number; total_hours: number; projects: ProjectSummary[] }>("timetracking.get_summary", filterTag ? { project_tag: filterTag } : undefined),
-    ]);
+    const calRes = await rpc<CalendarData>("timetracking.get_calendar_data", { year, month, project_tag: filterTag });
     if (calRes.ok && calRes.data) setCalData(calRes.data);
-    if (sumRes.ok && sumRes.data) setSummaryData(sumRes.data);
     setLoading(false);
   }, [year, month, filterTag]);
 
@@ -195,16 +183,17 @@ export function TimeTrackingView() {
   // ── Derived data ────────────────────────────────────────────────────────
 
   const allTags = useMemo(() => {
-    if (!summaryData) return [];
-    return summaryData.projects.map((p) => p.tag);
-  }, [summaryData]);
+    if (!calData) return [];
+    return calData.projects.map((p) => p.tag);
+  }, [calData]);
 
   const dayEvents = useMemo(() => {
     if (!selectedDay || !calData) return [];
     return calData.events.filter((ev) => ev.date === selectedDay);
   }, [selectedDay, calData]);
 
-  const hasData = summaryData && summaryData.total_events > 0;
+  const hasAnyData = calendarSource !== null;
+  const monthHasEvents = calData && calData.summary && calData.summary.total_events > 0;
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -218,16 +207,16 @@ export function TimeTrackingView() {
       <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b border-border-subtle">
         <h2 className="text-sm font-semibold">Time Tracking</h2>
         <div className="flex-1" />
-        {hasData && (
+        {monthHasEvents && (
           <div className="flex items-center gap-1.5 text-xs text-primary">
             <Clock size={13} className="text-secondary" />
-            <span className="tabular-nums font-bold">{summaryData!.total_hours}h</span>
+            <span className="tabular-nums font-bold">{calData!.summary.total_hours}h</span>
             <span className="text-secondary">across</span>
-            <span className="tabular-nums font-bold">{summaryData!.total_events}</span>
+            <span className="tabular-nums font-bold">{calData!.summary.total_events}</span>
             <span className="text-secondary">events</span>
           </div>
         )}
-        {hasData && (
+        {hasAnyData && (
           <button onClick={clearData}
             className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted hover:text-red-400 hover:bg-bg-hover transition-colors"
             title="Clear imported data and choose a different source">
@@ -240,7 +229,7 @@ export function TimeTrackingView() {
       <div className="flex flex-1 overflow-hidden">
         {/* Main area */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {!hasData ? (
+          {!hasAnyData ? (
             <SourceChooser
               dragOver={dragOver}
               importing={importing}
@@ -325,15 +314,20 @@ export function TimeTrackingView() {
           )}
         </div>
 
-        {/* Right sidebar: project summary */}
-        {hasData && (
+        {/* Right sidebar: project summary for current month */}
+        {monthHasEvents && (
           <div className="w-60 shrink-0 border-l border-border-subtle overflow-y-auto p-4 space-y-4">
             <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">Projects</div>
-            {summaryData!.projects.map((p) => (
+            {calData!.projects.map((p) => (
               <div key={p.tag} className="space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tagColor(p.tag, allTags) }} />
-                  <span className="text-[13px] font-semibold truncate text-primary">{p.title}</span>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold truncate text-primary">{p.title || p.tag}</div>
+                    {p.title && p.title !== p.tag && (
+                      <div className="text-[11px] text-tertiary truncate">{p.tag}</div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 ml-5">
                   <span className="text-xs tabular-nums font-medium text-primary">{p.hours}h</span>
@@ -344,8 +338,8 @@ export function TimeTrackingView() {
 
             <div className="border-t border-border-subtle pt-3">
               <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1">Total</div>
-              <div className="text-xl font-bold tabular-nums text-primary">{summaryData!.total_hours}h</div>
-              <div className="text-xs text-secondary">{summaryData!.total_events} events</div>
+              <div className="text-xl font-bold tabular-nums text-primary">{calData!.summary.total_hours}h</div>
+              <div className="text-xs text-secondary">{calData!.summary.total_events} events</div>
             </div>
           </div>
         )}

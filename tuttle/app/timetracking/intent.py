@@ -71,9 +71,13 @@ class TimeTrackingIntent(Intent):
             year = datetime.date.today().year
         if month is None:
             month = datetime.date.today().month
+        proj_result = ProjectsIntent().get_all()
+        tag_to_title = {}
+        if proj_result.was_intent_successful and proj_result.data:
+            tag_to_title = {p.tag: p.title for p in proj_result.data}
         return IntentResult(
             was_intent_successful=True,
-            data=build_calendar_data(df, year, month, project_tag),
+            data=build_calendar_data(df, year, month, project_tag, tag_to_title),
         )
 
     def import_ics(self, content: str, name: str = "imported.ics") -> IntentResult:
