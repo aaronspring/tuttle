@@ -160,7 +160,8 @@ def monthly_revenue_breakdown(
 ) -> list:
     """Revenue breakdown by month for the last n_months.
 
-    Returns a list of dicts with keys: month, revenue, invoice_count.
+    Returns a list of dicts with keys: month, revenue, pipeline, invoice_count.
+    ``revenue`` is paid invoices; ``pipeline`` is sent-but-unpaid invoices.
     """
     today = datetime.date.today()
     start = (today - datetime.timedelta(days=30 * n_months)).replace(day=1)
@@ -169,16 +170,25 @@ def monthly_revenue_breakdown(
     current = start
     while current <= today:
         key = current.strftime("%Y-%m")
-        months[key] = {"month": key, "revenue": Decimal(0), "invoice_count": 0}
+        months[key] = {
+            "month": key,
+            "revenue": Decimal(0),
+            "pipeline": Decimal(0),
+            "invoice_count": 0,
+        }
         current = (current + datetime.timedelta(days=32)).replace(day=1)
 
     for inv in invoices:
         if inv.cancelled:
             continue
         key = inv.date.strftime("%Y-%m")
-        if key in months:
+        if key not in months:
+            continue
+        if inv.paid:
             months[key]["revenue"] += inv.total
             months[key]["invoice_count"] += 1
+        elif inv.sent:
+            months[key]["pipeline"] += inv.total
 
     return sorted(months.values(), key=lambda x: x["month"])
 
@@ -225,7 +235,7 @@ def monthly_spendable_breakdown(
         pass
 
     for inv in invoices:
-        if inv.cancelled:
+        if inv.cancelled or not inv.paid:
             continue
         if currency and inv.contract and inv.contract.currency not in (currency, None):
             continue

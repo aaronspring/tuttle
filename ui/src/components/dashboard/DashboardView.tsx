@@ -20,7 +20,7 @@ interface BudgetEntry {
 
 export function DashboardView() {
   const [kpis, setKpis] = useState<Entity | null>(null);
-  const [chartData, setChartData] = useState<{ label: string; revenue: number; spendable: number }[]>([]);
+  const [chartData, setChartData] = useState<{ label: string; revenue: number; pipeline: number; spendable: number }[]>([]);
   const [budgets, setBudgets] = useState<BudgetEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,6 +44,7 @@ export function DashboardView() {
         return {
           label: p.length === 2 ? `${p[1]}/${p[0].slice(2)}` : m,
           revenue: num(r, "revenue"),
+          pipeline: num(r, "pipeline"),
           spendable: spend[i] ? num(spend[i], "spendable") : 0,
         };
       }));
@@ -90,7 +91,8 @@ export function DashboardView() {
               <Tooltip contentStyle={{ background: "#3a3a3c", border: "1px solid #4a4a4c", borderRadius: 8, color: "#fff" }}
                 labelStyle={{ color: "#b8b8bc" }} />
               <Legend wrapperStyle={{ fontSize: 13, color: "#b8b8bc" }} />
-              <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="revenue" name="Revenue" stackId="income" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="pipeline" name="Pending" stackId="income" fill="#93c5fd" radius={[3, 3, 0, 0]} />
               <Bar dataKey="spendable" name="Spendable" fill="#4ade80" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

@@ -337,6 +337,31 @@ class TestMonthlyRevenueBreakdown:
         keys = [m["month"] for m in result]
         assert keys == sorted(keys)
 
+    def test_pipeline_key_present(self):
+        result = monthly_revenue_breakdown([], n_months=3)
+        for m in result:
+            assert "pipeline" in m
+
+    def test_sent_unpaid_goes_to_pipeline(self, unpaid_invoice):
+        result = monthly_revenue_breakdown([unpaid_invoice], n_months=3)
+        total_revenue = sum(float(m["revenue"]) for m in result)
+        total_pipeline = sum(float(m["pipeline"]) for m in result)
+        assert total_revenue == 0
+        assert total_pipeline > 0
+
+    def test_paid_not_in_pipeline(self, paid_invoice):
+        result = monthly_revenue_breakdown([paid_invoice], n_months=3)
+        total_pipeline = sum(float(m["pipeline"]) for m in result)
+        assert total_pipeline == 0
+
+    def test_unsent_unpaid_excluded_from_both(self, unpaid_invoice):
+        unpaid_invoice.sent = False
+        result = monthly_revenue_breakdown([unpaid_invoice], n_months=3)
+        total_revenue = sum(float(m["revenue"]) for m in result)
+        total_pipeline = sum(float(m["pipeline"]) for m in result)
+        assert total_revenue == 0
+        assert total_pipeline == 0
+
 
 class TestMonthlySpendableBreakdown:
     def test_with_invoices(self, paid_invoice):
