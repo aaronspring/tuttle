@@ -1,4 +1,24 @@
-"""Object model."""
+"""Object model — the single source of truth for the database schema.
+
+SCHEMA CHANGE WORKFLOW
+======================
+Any change to a SQLModel class in this file (new column, renamed field,
+new table, new relationship) is a schema change. You MUST follow up with:
+
+    1. just migrate "<describe change>"
+       (alias for `alembic revision --autogenerate -m ...`)
+    2. Review the generated script in tuttle/migrations/versions/
+       — especially CHECK FOR drop_column + add_column PAIRS that
+       represent renames; replace them with op.alter_column(...,
+       new_column_name=...) to preserve data.
+    3. Commit model.py AND the new migration script TOGETHER.
+
+DO NOT edit user databases manually. DO NOT add ALTER TABLE strings here
+or elsewhere — Alembic derives all DDL from SQLModel.metadata.
+
+See tuttle/migrations/README.md and .cursor/rules/schema-migrations.mdc
+for the full rationale.
+"""
 
 from typing import Literal, Optional, List, Dict, Type
 from pydantic import constr, BaseModel, condecimal

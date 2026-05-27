@@ -23,6 +23,14 @@ block_cipher = None
 datas = [
     ("templates", "templates"),
     ("tuttle/tax_data", "tuttle/tax_data"),
+    # Alembic migration scripts are loaded by path at runtime, so
+    # PyInstaller's import analyzer cannot discover them. Bundle the
+    # whole migrations tree (env.py, script.py.mako, versions/*.py)
+    # plus the alembic.ini so ensure_schema() can locate them via
+    # sys._MEIPASS when frozen. Without this, the packaged .app fails
+    # to migrate per-user DBs on first launch.
+    ("tuttle/migrations", "tuttle/migrations"),
+    ("alembic.ini", "."),
 ]
 
 # rfc3987_syntax ships non-Python data files that PyInstaller misses
@@ -70,6 +78,15 @@ hiddenimports = [
     # SQLModel / SQLAlchemy backends
     "sqlmodel",
     "sqlalchemy.dialects.sqlite",
+    # Alembic — env.py is imported by path at runtime; deps must be bundled
+    "alembic",
+    "alembic.config",
+    "alembic.command",
+    "alembic.script",
+    "alembic.runtime.migration",
+    "alembic.autogenerate",
+    "mako",
+    "mako.template",
     # WeasyPrint rendering chain
     "weasyprint",
     "cairocffi",

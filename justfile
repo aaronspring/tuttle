@@ -96,6 +96,36 @@ calendar-setup:
 test *args="":
     {{python}} -m pytest {{args}}
 
+
+# Create a new Alembic migration from the current SQLModel diff.
+#   just migrate "add foo to client"
+# Runs autogenerate against a throw-away temp DB and writes a new
+# revision to tuttle/migrations/versions/. ALWAYS review the result —
+# autogenerate misreads renames as drop+add (data loss).
+migrate message:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp=$(mktemp -t tuttle_migrate.XXXXXX.db)
+    trap 'rm -f "$tmp"' EXIT
+    TUTTLE_DB_URL="sqlite:///$tmp" {{venv}}/bin/alembic upgrade head
+    TUTTLE_DB_URL="sqlite:///$tmp" {{venv}}/bin/alembic revision --autogenerate -m "{{message}}"
+    echo ""
+    echo "✓ Revision written. REVIEW it before committing:"
+    echo "  - any op.drop_column + op.add_column pair is a rename → use op.alter_column(new_column_name=...)"
+    echo "  - no \`from tuttle.model import ...\`"
+    echo "  - PRAGMA foreign_key_check after batch ops on FK tables"
+
+
+# Fail if tuttle/model.py and tuttle/migrations/versions/ disagree.
+# Wire this into CI to prevent silent schema drift.
+check-migrations:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp=$(mktemp -t tuttle_check.XXXXXX.db)
+    trap 'rm -f "$tmp"' EXIT
+    TUTTLE_DB_URL="sqlite:///$tmp" {{venv}}/bin/alembic upgrade head
+    TUTTLE_DB_URL="sqlite:///$tmp" {{venv}}/bin/alembic check
+
 # ── Utilities ───────────────────────────────────────────────────────────────
 
 # Install/sync Python dependencies

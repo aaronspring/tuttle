@@ -11,10 +11,11 @@ import ics
 import numpy
 import sqlalchemy
 from loguru import logger
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, create_engine, select
 
 from tuttle import rendering
 from tuttle.calendar import Calendar, ICSCalendar
+from tuttle.db_schema import ensure_schema
 
 from tuttle.model import (
     Address,
@@ -656,10 +657,8 @@ def install_demo_data(
     """
     db_url = f"""sqlite:///{db_path}"""
     logger.info(f"Installing demo data in {db_url}...")
-    logger.info(f"Creating database engine at: {db_url}...")
+    ensure_schema(db_url)
     db_engine = create_engine(db_url)
-    logger.info("Creating database tables...")
-    SQLModel.metadata.create_all(db_engine)
 
     logger.info("Creating demo user...")
     with Session(db_engine) as session:

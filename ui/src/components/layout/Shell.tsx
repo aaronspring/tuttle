@@ -19,8 +19,26 @@ import { rpc } from "../../api/rpc";
 
 type BootState = "loading" | "welcome" | "ready";
 
+type BootPhase =
+  | "init"
+  | "registry"
+  | "users"
+  | "demo"
+  | "switching"
+  | "creating";
+
+const PHASE: Record<BootPhase, string> = {
+  init:      "Warming up the boiler",
+  registry:  "Inspecting the ductwork",
+  users:     "Reading the engineer's roster",
+  demo:      "Dispatching Harry Tuttle",
+  switching: "Refitting to spec 27B/6",
+  creating:  "Filing form 27B/6",
+};
+
 export function Shell() {
   const [bootState, setBootState] = useState<BootState>("loading");
+  const [bootPhase, setBootPhase] = useState<BootPhase>("init");
   const [selected, setSelected] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [navFilter, setNavFilter] = useState<NavigationFilter>({});
@@ -52,7 +70,9 @@ export function Shell() {
 
   useEffect(() => {
     (async () => {
+      setBootPhase("registry");
       await rpc("db.ensure");
+      setBootPhase("users");
       const usersRes = await rpc<RegisteredUser[]>("users.list");
       const users = usersRes.ok && usersRes.data ? usersRes.data : [];
       setAllUsers(users);
@@ -67,9 +87,11 @@ export function Shell() {
   }, []);
 
   async function handleWelcomeDemo() {
+    setBootPhase("demo");
     setBootState("loading");
     await rpc("users.ensure_demo");
     await refreshUsers();
+    setBootPhase("switching");
     const demoSwitch = await rpc("users.switch", { db_file: "harry-tuttle.db" });
     if (demoSwitch.ok) {
       await refreshActiveUser();
@@ -78,6 +100,8 @@ export function Shell() {
   }
 
   async function handleSwitchUser(dbFile: string) {
+    setBootPhase("switching");
+    setBootState("loading");
     await rpc("users.switch", { db_file: dbFile });
     await refreshActiveUser();
     setSelected("dashboard");
@@ -98,6 +122,7 @@ export function Shell() {
 
   async function handleRegSubmit(data: OnboardingData) {
     setRegLoading(true);
+    setBootPhase("creating");
     const res = await rpc<RegisteredUser>(
       "users.create",
       data.profile as unknown as Record<string, unknown>,
@@ -132,7 +157,7 @@ export function Shell() {
       <div className="flex h-screen w-screen items-center justify-center bg-bg-content text-secondary">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm">Loading Tuttle…</p>
+          <p className="text-sm">{PHASE[bootPhase]}…</p>
         </div>
       </div>
     );

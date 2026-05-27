@@ -32,8 +32,7 @@ class UsersIntent:
         db_path = self._app_db.get_user_db_path(db_file)
         reg = self._app_db.get_user_by_db_file(db_file)
         is_demo = reg and reg.is_demo if reg else False
-        if not is_demo:
-            self._ensure_user_db(db_path)
+        self._ensure_user_db(db_path)
         set_active_db(db_path)
         self._app_db.set_active(db_file)
         reset_all()

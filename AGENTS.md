@@ -16,3 +16,10 @@ OUTPUT STYLE: dense
 - No narration, no filler, no hedging
 - BUDGET: ≤200 tokens per response unless code block required
 <!-- /lean-ctx-compression -->
+
+## Schema changes
+
+Schema lives in `tuttle/model.py`. Migrations are Alembic in `tuttle/migrations/`.
+Any change to a SQLModel class requires `just migrate "<msg>"` + reviewing the
+generated revision for rename-as-drop+add traps. See
+`.cursor/rules/schema-migrations.mdc` and `tuttle/migrations/README.md`.
