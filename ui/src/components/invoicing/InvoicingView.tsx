@@ -253,16 +253,22 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [projectId, setProjectId] = useState<number | null>(null);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [fromDate, setFromDate] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() - 1); d.setDate(1); return d.toISOString().slice(0, 10);
+    const d = new Date(); d.setMonth(d.getMonth() - 1); d.setDate(1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
   });
   const [toDate, setToDate] = useState(() => {
-    const d = new Date(); d.setDate(0); return d.toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(0);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
+
+  function localDateStr(d: Date) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
 
   function setMonth(year: number, month: number) {
     setFromDate(`${year}-${String(month + 1).padStart(2, "0")}-01`);
     const last = new Date(year, month + 1, 0);
-    setToDate(last.toISOString().slice(0, 10));
+    setToDate(localDateStr(last));
   }
 
   function shiftMonth(delta: number) {

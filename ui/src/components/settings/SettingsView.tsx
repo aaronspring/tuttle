@@ -47,12 +47,16 @@ interface ProfileForm {
   postal_code: string;
   city: string;
   country: string;
+  bank_name: string;
+  bank_IBAN: string;
+  bank_BIC: string;
 }
 
 const EMPTY_PROFILE: ProfileForm = {
   name: "", subtitle: "", email: "", phone_number: "", website: "",
   VAT_number: "", operating_country: "Germany",
   street: "", number: "", postal_code: "", city: "", country: "Germany",
+  bank_name: "", bank_IBAN: "", bank_BIC: "",
 };
 
 interface InvoicingPrefs {
@@ -179,6 +183,7 @@ export function SettingsView() {
       const p = d.profile as Entity | undefined;
       if (p) {
         const addr = p.address as Entity | undefined;
+        const bank = p.bank_account as Entity | undefined;
         setProfile({
           name: str(p, "name"),
           subtitle: str(p, "subtitle"),
@@ -192,6 +197,9 @@ export function SettingsView() {
           postal_code: addr ? str(addr, "postal_code") : "",
           city: addr ? str(addr, "city") : "",
           country: addr ? str(addr, "country") : "",
+          bank_name: bank ? str(bank, "name") : "",
+          bank_IBAN: bank ? str(bank, "IBAN") : "",
+          bank_BIC: bank ? str(bank, "BIC") : "",
         });
       }
     }
@@ -216,6 +224,11 @@ export function SettingsView() {
           postal_code: profile.postal_code,
           city: profile.city,
           country: profile.country,
+        },
+        bank_account: {
+          name: profile.bank_name,
+          IBAN: profile.bank_IBAN,
+          BIC: profile.bank_BIC,
         },
       },
     };
@@ -406,6 +419,25 @@ export function SettingsView() {
               <p className="mt-1 text-xs text-muted">Determines tax rules and default currency.</p>
             </div>
           </div>
+
+          <fieldset className="border border-border-subtle rounded-lg px-4 pb-3 pt-2">
+            <legend className="text-xs font-medium text-secondary px-1">Bank Account</legend>
+            <p className="text-xs text-muted mb-2">Appears on invoices as payment details.</p>
+            <div className="grid grid-cols-2 gap-3 mt-1">
+              <div className="col-span-2">
+                <label className={labelCls}>Account holder / Bank name</label>
+                <input className={inputCls} value={profile.bank_name} onChange={pset("bank_name")} placeholder="Your Name or Bank Name" />
+              </div>
+              <div>
+                <label className={labelCls}>IBAN</label>
+                <input className={inputCls} value={profile.bank_IBAN} onChange={pset("bank_IBAN")} placeholder="DE89 3704 0044 0532 0130 00" />
+              </div>
+              <div>
+                <label className={labelCls}>BIC</label>
+                <input className={inputCls} value={profile.bank_BIC} onChange={pset("bank_BIC")} placeholder="COBADEFFXXX" />
+              </div>
+            </div>
+          </fieldset>
 
           {profileStatus && (
             <div className={`flex items-center gap-2 text-sm ${profileStatus.type === "success" ? "text-green-400" : "text-red-400"}`}>

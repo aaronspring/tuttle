@@ -196,13 +196,30 @@ body {
 
 .payment {
   flex: 1;
+  max-width: 240pt;
 }
 
-.payment-value {
-  font-size: 9pt;
-  line-height: 1.7;
-  color: #444;
-  margin-top: 4pt;
+.payment-table {
+  margin-top: 6pt;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  line-height: 1.5;
+}
+
+.payment-key {
+  color: #888;
+  font-weight: 600;
+  padding: 2pt 10pt 2pt 0;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.payment-val {
+  color: #222;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  letter-spacing: 0.3pt;
+  padding: 2pt 0;
+  vertical-align: top;
 }
 
 .totals {

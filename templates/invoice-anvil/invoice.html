@@ -46,10 +46,10 @@
         {% endif %}
       </td>
       <td>
-        <big>{{ user.name }}</big><br>
+        <big>{{ user.name }}</big><br>
         {{ user.subtitle }}<br>
         <br>
-        {{ user.address.html }}
+        {{ user.address.html }}
         <br>
         <br>
         <span>{{ user.email}}</span><br>
@@ -126,7 +126,7 @@
       <tr>
         <td class="payment-info">
           <div>
-            IBAN: <strong>{{ user.bank_account.IBAN }}</strong><br>
+            {% if user.bank_account %}IBAN: <strong>{{ user.bank_account.IBAN }}</strong><br>{% endif %}
           </div>
         </td>
         <td class="bold">{{ invoice.effective_due_date }}</td>
@@ -149,8 +149,8 @@
 
   <div class="footer">
     <div class="footer-info">
-      <span>IBAN: {{ user.bank_account.IBAN }} </span> |
-      <span>BIC: {{ user.bank_account.BIC  }}</span> |
+      {% if user.bank_account %}<span>IBAN: {{ user.bank_account.IBAN }} </span> |
+      <span>BIC: {{ user.bank_account.BIC  }}</span> |{% endif %}
       <span>VAT No: {{ user.VAT_number }}</span>
     </div>
   </div>

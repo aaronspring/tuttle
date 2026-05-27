@@ -95,7 +95,7 @@
     <tbody>
       <tr>
         <td>{{ invoice.effective_due_date }}</td>
-        <td>{{ user.bank_account.IBAN }}</td>
+        <td>{% if user.bank_account %}{{ user.bank_account.IBAN }}{% endif %}</td>
         <td>{{ invoice.total | as_currency }}</td>
       </tr>
     </tbody>
@@ -123,7 +123,7 @@
         </td>
         <td>
           VAT Number: {{ user.VAT_number }}<br>
-          IBAN: {{ user.bank_account.IBAN }}
+          {% if user.bank_account %}IBAN: {{ user.bank_account.IBAN }}{% endif %}
         </td>
       </tr>
     </tbody>

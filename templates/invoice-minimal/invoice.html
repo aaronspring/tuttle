@@ -124,7 +124,7 @@
   <div class="payment">
     <span class="field-label">{{ l.payment }}</span>
     <div class="payment-value">
-      <div>IBAN: {{ user.bank_account.IBAN }}{% if user.bank_account.BIC %}&emsp;BIC: {{ user.bank_account.BIC }}{% endif %}</div>
+      {% if user.bank_account %}<div>IBAN: {{ user.bank_account.IBAN }}{% if user.bank_account.BIC %}&emsp;BIC: {{ user.bank_account.BIC }}{% endif %}</div>{% endif %}
     </div>
   </div>
 
@@ -136,8 +136,8 @@
 
   <div class="footer">
     <span>{{ user.name }}</span>
-    <span>IBAN: {{ user.bank_account.IBAN }}</span>
-    {% if user.bank_account.BIC %}<span>BIC: {{ user.bank_account.BIC }}</span>{% endif %}
+    {% if user.bank_account %}<span>IBAN: {{ user.bank_account.IBAN }}</span>
+    {% if user.bank_account.BIC %}<span>BIC: {{ user.bank_account.BIC }}</span>{% endif %}{% endif %}
     {% if user.VAT_number %}<span>{{ l.vat }}: {{ user.VAT_number }}</span>{% endif %}
   </div>
 

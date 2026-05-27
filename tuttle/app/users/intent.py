@@ -8,7 +8,7 @@ from loguru import logger
 from sqlmodel import Session as SqlSession, create_engine as sql_create_engine, select
 
 from ...app_db import AppDatabase
-from ...model import Address, Invoice, Timesheet, User
+from ...model import Address, BankAccount, Invoice, Timesheet, User
 from ..auth.data_source import UserDataSource
 from ..core.abstractions import get_active_db, set_active_db
 from ..core.intent_result import IntentResult
@@ -182,6 +182,13 @@ class UsersIntent:
                 VAT_number=params.get("vat_number", ""),
                 address=address,
             )
+            bank = params.get("bank_account")
+            if bank and any(bank.get(k) for k in ("IBAN", "BIC", "name")):
+                user.bank_account = BankAccount(
+                    name=bank.get("name", ""),
+                    IBAN=bank.get("IBAN", ""),
+                    BIC=bank.get("BIC", ""),
+                )
             s.add(user)
             s.commit()
         engine.dispose()
@@ -226,6 +233,19 @@ class UsersIntent:
                         for k, v in addr.items()
                         if k != "id" and not k.startswith("_")
                     }
+                )
+
+        bank = profile_data.get("bank_account")
+        if bank is not None:
+            if profile.bank_account:
+                for k in ("name", "IBAN", "BIC"):
+                    if k in bank:
+                        setattr(profile.bank_account, k, bank[k])
+            else:
+                profile.bank_account = BankAccount(
+                    name=bank.get("name", ""),
+                    IBAN=bank.get("IBAN", ""),
+                    BIC=bank.get("BIC", ""),
                 )
 
         with ds.create_session() as s:

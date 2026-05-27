@@ -174,7 +174,7 @@ class Address(RpcMixin, SQLModel, table=True):
 class User(RpcMixin, SQLModel, table=True):
     """User of the application, a freelancer."""
 
-    __rpc_relationships__ = ("address",)
+    __rpc_relationships__ = ("address", "bank_account")
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

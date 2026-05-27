@@ -123,10 +123,15 @@ export function Shell() {
   async function handleRegSubmit(data: OnboardingData) {
     setRegLoading(true);
     setBootPhase("creating");
-    const res = await rpc<RegisteredUser>(
-      "users.create",
-      data.profile as unknown as Record<string, unknown>,
-    );
+    const createParams = {
+      ...(data.profile as unknown as Record<string, unknown>),
+      bank_account: {
+        name: data.profile.bank_name,
+        IBAN: data.profile.bank_IBAN,
+        BIC: data.profile.bank_BIC,
+      },
+    };
+    const res = await rpc<RegisteredUser>("users.create", createParams);
     if (res.ok && res.data) {
       await rpc("preferences.save", {
         invoice_template: data.invoicing.invoice_template,

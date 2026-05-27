@@ -29,6 +29,9 @@ export interface WizardProfileData {
   country: string;
   vat_number: string;
   operating_country: string;
+  bank_name: string;
+  bank_IBAN: string;
+  bank_BIC: string;
 }
 
 export interface WizardInvoicingData {
@@ -64,6 +67,7 @@ const EMPTY_PROFILE: WizardProfileData = {
   name: "", subtitle: "", email: "", phone: "", website: "",
   street: "", street_num: "", postal_code: "", city: "", country: "Germany",
   vat_number: "", operating_country: "Germany",
+  bank_name: "", bank_IBAN: "", bank_BIC: "",
 };
 
 const DEFAULT_INVOICING: WizardInvoicingData = {
@@ -314,6 +318,25 @@ export function OnboardingWizard({ open, onClose, onSubmit, onDemo, loading, ove
             <p className="mt-1 text-xs text-muted">Determines tax rules and default currency.</p>
           </div>
         </div>
+
+        <fieldset className="border border-border-subtle rounded-lg px-4 pb-3 pt-2">
+          <legend className="text-xs font-medium text-secondary px-1">Bank Account</legend>
+          <p className="text-xs text-muted mb-2">Payment details shown on your invoices.</p>
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            <div className="col-span-2">
+              <label className={labelCls}>Account holder / Bank name</label>
+              <input className={inputCls} value={profile.bank_name} onChange={pset("bank_name")} placeholder="Your Name or Bank Name" />
+            </div>
+            <div>
+              <label className={labelCls}>IBAN</label>
+              <input className={inputCls} value={profile.bank_IBAN} onChange={pset("bank_IBAN")} placeholder="DE89 3704 0044 0532 0130 00" />
+            </div>
+            <div>
+              <label className={labelCls}>BIC</label>
+              <input className={inputCls} value={profile.bank_BIC} onChange={pset("bank_BIC")} placeholder="COBADEFFXXX" />
+            </div>
+          </div>
+        </fieldset>
       </div>
     );
   }
