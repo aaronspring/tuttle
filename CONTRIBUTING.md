@@ -53,22 +53,38 @@ If you are proposing a feature:
 Ready to contribute? Here's how to set up Tuttle for
 local development.
 
+## Prerequisites
+
+-   Python 3.12 or newer
+-   [uv](https://docs.astral.sh/uv/) (recommended) or pip
+-   Node.js 22 or newer
+
+## Development Setup
+
 1.  Fork the repo on GitHub.
 
 2.  Clone your fork locally:
 
     ```shell
     git clone git@github.com:your_name_here/tuttle.git
+    cd tuttle/
     ```
 
-3.  Install dependencies with [uv](https://docs.astral.sh/uv/):
+3.  Install the Python core dependencies with [uv](https://docs.astral.sh/uv/):
 
     ```shell
-    cd tuttle/
     uv sync
     ```
 
-4.  Create a branch for local development:
+4.  Install the Electron UI dependencies:
+
+    ```shell
+    cd ui
+    npm install
+    cd ..
+    ```
+
+5.  Create a branch for local development:
 
     ```shell
     git checkout -b name-of-your-bugfix-or-feature
@@ -83,7 +99,7 @@ local development.
     pre-commit install
     ```
 
-5.  If you haven't done so already, install and/or activate
+6.  If you haven't done so already, install and/or activate
     [pyright](https://github.com/microsoft/pyright).
     The "basic" level should suffice and help you to avoid type errors.
     If you are getting a type error, ask yourself:
@@ -96,7 +112,7 @@ local development.
     Oftentimes, type errors indicate bad design,
     so keep refactoring in mind as a third option.
 
-6.  When you're done making changes, check that your changes pass
+7.  When you're done making changes, check that your changes pass
     the tests:
 
     ```shell
@@ -104,7 +120,7 @@ local development.
     ```
 
 
-7.  Commit your changes and push your branch to GitHub:
+8.  Commit your changes and push your branch to GitHub:
 
     ```shell
     git add .
@@ -112,7 +128,26 @@ local development.
     git push origin name-of-your-bugfix-or-feature
     ```
 
-8.  Submit a pull request through the GitHub website.
+9.  Submit a pull request through the GitHub website.
+
+## Running the App
+
+Start the Electron app in development mode. The Python RPC sidecar is
+spawned automatically:
+
+```shell
+cd ui
+npm run dev
+```
+
+## Building for Production
+
+```shell
+just build
+```
+
+This builds the Python sidecar with PyInstaller and packages the Electron
+app with electron-builder.
 
 # Pull Request Guidelines
 
@@ -148,7 +183,14 @@ git push --tags
 ```
 
 
-## Architecture Notes
+# Architecture
+
+Tuttle is a desktop application with a Python core and an Electron UI shell.
+
+- **Python core** (`tuttle/`): Business logic, data models, invoicing, tax calculations, and a JSON-RPC server (`tuttle/rpc_server.py`) that exposes the core as a stdio service.
+- **Electron shell** (`ui/`): React + TypeScript desktop UI that communicates with the Python core via JSON-RPC over stdio.
+
+### Architecture Notes
 
 **The View**
 

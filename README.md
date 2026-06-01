@@ -2,8 +2,10 @@
 <div align="center">
   <h1>Tuttle</h1>
 
-  [![License](https://img.shields.io/github/license/tuttle-dev/tuttle?color=green&style=flat-square)](https://github.com/tuttle-dev/tuttle/blob/main/LICENSE)
-  [![Commit Activity](https://img.shields.io/github/commit-activity/m/tuttle-dev/tuttle?style=flat-square)]()
+  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-green?style=flat-square)](https://github.com/tuttle-dev/tuttle/blob/main/LICENSE)
+  [![Python](https://img.shields.io/badge/python-3.12+-blue?style=flat-square)](https://www.python.org/)
+  [![Release](https://img.shields.io/github/v/release/tuttle-dev/tuttle?style=flat-square&include_prereleases)](https://github.com/tuttle-dev/tuttle/releases)
+  [![CI](https://img.shields.io/github/actions/workflow/status/tuttle-dev/tuttle/python-package.yml?label=CI&style=flat-square)](https://github.com/tuttle-dev/tuttle/actions/workflows/python-package.yml)
 
 
   <p><b>Time and money management for freelancers</b></p>
@@ -23,6 +25,15 @@
 </div>
 
 > **Note**: Tuttle is currently in development. The current version is a prototype, not quite ready for production use. However, we are happy to receive feedback from testers.
+
+## What Tuttle Does
+
+Tuttle is a desktop app that takes the paperwork off your plate as a freelancer:
+
+- **Track your time** — import it from your cloud calendar (iCloud), an ICS file, or a CSV export from your time-tracking tool.
+- **Generate invoices and timesheets** — automatically from your tracked time, or by entering hours and days manually, then export to PDF and send by email. Every invoice is also a valid EU electronic invoice by default (Factur-X / ZUGFeRD), so you stay compliant without any extra steps.
+- **See your business at a glance** — a dashboard with revenue, outstanding invoices, project budgets, and key performance indicators.
+- **Keep your data private** — everything is processed and stored locally on your device, with no central data collection.
 
 ## Mission Statement
 
@@ -74,71 +85,23 @@ Track regular expenses, taxes and social security contributions. Estimate them f
 Calculate your effective income and see how much you can spend without risking your financial security.
 
 
-## Architecture
-
-Tuttle is a desktop application with a Python core and an Electron UI shell.
-
-- **Python core** (`tuttle/`): Business logic, data models, invoicing, tax calculations, and a JSON-RPC server (`tuttle/rpc_server.py`) that exposes the core as a stdio service.
-- **Electron shell** (`ui/`): React + TypeScript desktop UI that communicates with the Python core via JSON-RPC over stdio.
-
-
 ## Getting Started
 
-### Prerequisites
+Tuttle is a desktop application for Windows, macOS, and Linux.
 
-- Python 3.12 or newer
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- Node.js 22 or newer
+> **Note**: There is no stable release yet. The latest builds are pre-releases intended for testers.
 
-### Installation
+1. Go to the [Releases page](https://github.com/tuttle-dev/tuttle/releases) and download the build for your operating system.
+2. Install and launch it like any other desktop application.
 
-1. Clone the repository:
+Your data is stored locally on your device — there is no account to create and no central server involved.
 
-```shell
-git clone https://github.com/tuttle-dev/tuttle.git
-cd tuttle
-```
-
-2. Install Python dependencies:
-
-```shell
-uv sync
-```
-
-3. Install Electron dependencies:
-
-```shell
-cd ui
-npm install
-```
-
-### Running the App (Development)
-
-```shell
-cd ui
-npm run dev
-```
-
-This starts the Electron app in development mode. The Python RPC sidecar is spawned automatically.
-
-### Building for Production
-
-```shell
-just build
-```
-
-This builds the Python sidecar with PyInstaller and packages the Electron app with electron-builder.
-
-### Running the Tests
-
-```shell
-uv run pytest
-```
+Want to build from source, run the app in development mode, or contribute? See the [Contributing guide](https://github.com/tuttle-dev/tuttle/blob/main/CONTRIBUTING.md).
 
 
 ## Contributing
 
-Your contributions are welcome. Please follow the [guide (CONTRIBUTING.md)](https://github.com/tuttle-dev/tuttle/blob/main/CONTRIBUTING.md).
+Your contributions are welcome. The [Contributing guide (CONTRIBUTING.md)](https://github.com/tuttle-dev/tuttle/blob/main/CONTRIBUTING.md) covers the development setup, how to run the app and tests, and the pull request workflow.
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
