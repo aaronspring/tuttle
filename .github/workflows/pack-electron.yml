@@ -26,7 +26,9 @@ jobs:
           - os: windows-latest
             platform: windows
           - os: ubuntu-latest
-            platform: linux
+            platform: linux-x64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
 
     steps:
     - uses: actions/checkout@v4
