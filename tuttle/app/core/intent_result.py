@@ -17,6 +17,7 @@ class IntentResult(Generic[T]):
         data - payload if any else None, the type of data will be specified at instantiation
         was_intent_successful - True if no error or exception was raised, else False
         error_msg - message to display to the user
+        warning - non-fatal issue to surface to the user (e.g. render failure on an otherwise saved invoice)
         log_message - message to log for debugging
         exception - exception object for debugging
     """
@@ -26,11 +27,13 @@ class IntentResult(Generic[T]):
         data: Optional[T] = None,
         was_intent_successful: bool = False,
         error_msg: str = "",
+        warning: str = "",
         log_message: str = "",
         exception: Optional[Exception] = None,
     ):
         super().__init__()
         self.error_msg = error_msg
+        self.warning = warning
         self.data = data
         self.was_intent_successful = was_intent_successful
         self.log_message = log_message

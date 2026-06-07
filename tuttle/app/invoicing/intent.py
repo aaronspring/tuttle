@@ -312,6 +312,7 @@ class InvoicingIntent(Intent):
                 )
                 timesheet.invoice = invoice
 
+            render_warnings: list[str] = []
             if render:
                 if (
                     manual_quantity is None
@@ -331,6 +332,9 @@ class InvoicingIntent(Intent):
                             f"Error rendering timesheet for {project.title}: {ex}"
                         )
                         logger.exception(ex)
+                        render_warnings.append(
+                            f"Timesheet PDF could not be generated: {ex}"
+                        )
 
                 resolved_template = template_name or DEFAULT_INVOICE_TEMPLATE
                 if not template_name:
@@ -353,11 +357,14 @@ class InvoicingIntent(Intent):
                 except Exception as ex:
                     logger.error(f"Error rendering invoice for {project.title}: {ex}")
                     logger.exception(ex)
+                    render_warnings.append(f"Invoice PDF could not be generated: {ex}")
 
             self._invoicing_data_source.save_invoice(invoice)
+            warning_msg = "; ".join(render_warnings) if render_warnings else ""
             return IntentResult(
                 was_intent_successful=True,
                 data=invoice,
+                warning=warning_msg,
             )
         except ValueError:
             error_message = (
@@ -455,6 +462,7 @@ class InvoicingIntent(Intent):
             if reload.was_intent_successful and reload.data:
                 reminder = reload.data
 
+            render_warning = ""
             if render:
                 resolved_template = template_name or DEFAULT_INVOICE_TEMPLATE
                 if not template_name:
@@ -476,13 +484,18 @@ class InvoicingIntent(Intent):
                 except Exception as ex:
                     logger.error(f"Error rendering reminder: {ex}")
                     logger.exception(ex)
+                    render_warning = f"Reminder PDF could not be generated: {ex}"
 
             # Final re-load for clean RPC serialization
             final = self._invoicing_data_source.get_invoice_by_id(reminder.id)
             if final.was_intent_successful and final.data:
                 reminder = final.data
 
-            return IntentResult(was_intent_successful=True, data=reminder)
+            return IntentResult(
+                was_intent_successful=True,
+                data=reminder,
+                warning=render_warning,
+            )
         except Exception as ex:
             logger.error("Failed to create reminder.")
             logger.exception(ex)
@@ -797,6 +810,19 @@ Best regards,
             return IntentResult(
                 was_intent_successful=False,
                 error_msg="Failed to render the timesheet.",
+            )
+
+    def check_rendering(self) -> IntentResult:
+        """Verify that WeasyPrint and its native libs are loadable."""
+        try:
+            import weasyprint  # noqa: F401 — triggers ffi.py dlopen chain
+
+            return IntentResult(was_intent_successful=True)
+        except Exception as ex:
+            logger.error(f"Rendering health check failed: {ex}")
+            return IntentResult(
+                was_intent_successful=False,
+                error_msg=f"PDF rendering unavailable: {ex}",
             )
 
     def get_time_tracking_data_as_dataframe(self) -> Optional[DataFrame]:

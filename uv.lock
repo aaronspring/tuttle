@@ -3847,7 +3847,7 @@ wheels = [
 
 [[package]]
 name = "tuttle"
-version = "3.3.0a1"
+version = "3.6.1"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

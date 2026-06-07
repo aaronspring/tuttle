@@ -87,9 +87,8 @@ hiddenimports = [
     "alembic.autogenerate",
     "mako",
     "mako.template",
-    # WeasyPrint rendering chain
+    # WeasyPrint rendering chain (cairocffi removed — not used by WeasyPrint 68+)
     "weasyprint",
-    "cairocffi",
     "cssselect2",
     "tinycss2",
     "pyphen",

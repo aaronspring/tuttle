@@ -41,6 +41,7 @@ export function InvoicingView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newlyCreatedId, setNewlyCreatedId] = useState<number | null>(null);
   const [mailError, setMailError] = useState<string | null>(null);
+  const [renderWarning, setRenderWarning] = useState<string | null>(null);
 
   const defaultColumn = useCallback(
     (e: { id: number; [k: string]: unknown }) => invoiceStatus(e as Entity), [],
@@ -162,6 +163,14 @@ export function InvoicingView() {
         </div>
       </div>
 
+      {renderWarning && (
+        <div className="mx-4 mt-2 flex items-center gap-2 px-3 py-2 rounded-md text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30">
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="flex-1">{renderWarning}</span>
+          <button onClick={() => setRenderWarning(null)} className="text-amber-300 hover:text-amber-200">✕</button>
+        </div>
+      )}
+
       {viewMode === "list" ? (
         <div className="flex flex-1 overflow-hidden">
           {/* List */}
@@ -200,7 +209,7 @@ export function InvoicingView() {
                 onSendMail={() => sendMail(selected.id)}
                 onDelete={() => handleDelete(selected.id)} deleteError={deleteError}
                 mailError={mailError} onClearMailError={() => setMailError(null)}
-                onReminderCreated={(newId) => load(newId)}
+                onReminderCreated={(newId, warning) => { setRenderWarning(warning ?? null); load(newId); }}
                 onRefresh={() => load(selected.id)} />
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-2 text-tertiary">
@@ -220,7 +229,12 @@ export function InvoicingView() {
       {createOpen && (
         <CreateInvoiceDialog
           onClose={() => setCreateOpen(false)}
-          onCreated={async (newId) => { setNewlyCreatedId(newId ?? null); await load(newId); setCreateOpen(false); }}
+          onCreated={async (newId, warning) => {
+            setNewlyCreatedId(newId ?? null);
+            setRenderWarning(warning ?? null);
+            await load(newId);
+            setCreateOpen(false);
+          }}
         />
       )}
     </div>
@@ -248,7 +262,7 @@ function makeDefaultItem(project?: Entity | null): LineItem {
   };
 }
 
-function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (newId?: number) => Promise<void> | void }) {
+function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (newId?: number, warning?: string | null) => Promise<void> | void }) {
   const [projects, setProjects] = useState<Entity[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
@@ -353,7 +367,7 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     }
     const res = await rpc<{ id?: number }>("invoicing.create", params);
     if (res.ok) {
-      await onCreated(res.data?.id);
+      await onCreated(res.data?.id, res.warning);
     } else {
       setError(res.error || "Failed to create invoice");
     }
@@ -604,7 +618,7 @@ function InvoiceDetail({ invoice, allInvoices, onToggleSent, onTogglePaid, onTog
   onToggleSent: () => void; onTogglePaid: () => void; onToggleCancelled: () => void; onSendMail: () => void;
   onDelete: () => void; deleteError: string | null;
   mailError: string | null; onClearMailError: () => void;
-  onReminderCreated: (newId?: number) => void;
+  onReminderCreated: (newId?: number, warning?: string | null) => void;
   onRefresh: () => void;
 }) {
   const status = invoiceStatus(invoice);
@@ -878,7 +892,7 @@ function InvoiceDetail({ invoice, allInvoices, onToggleSent, onTogglePaid, onTog
           invoiceId={invoice.id}
           invoiceNumber={str(invoice, "number")}
           onClose={() => setReminderDialogOpen(false)}
-          onCreated={(newId) => { setReminderDialogOpen(false); onReminderCreated(newId); }}
+          onCreated={(newId, warning) => { setReminderDialogOpen(false); onReminderCreated(newId, warning); }}
         />
       )}
     </div>
@@ -938,7 +952,7 @@ function ActionBtn({ label, icon, color, active, onClick }: {
 }
 
 function CreateReminderDialog({ invoiceId, invoiceNumber, onClose, onCreated }: {
-  invoiceId: number; invoiceNumber: string; onClose: () => void; onCreated: (newId?: number) => void;
+  invoiceId: number; invoiceNumber: string; onClose: () => void; onCreated: (newId?: number, warning?: string | null) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const twoWeeks = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -961,7 +975,7 @@ function CreateReminderDialog({ invoiceId, invoiceNumber, onClose, onCreated }: 
     if (feeNum > 0) params.reminder_fee = feeNum;
     const res = await rpc<{ id?: number }>("invoicing.create_reminder", params);
     if (res.ok) {
-      onCreated(res.data?.id);
+      onCreated(res.data?.id, res.warning);
     } else {
       setError(res.error || "Failed to create reminder");
     }

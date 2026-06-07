@@ -20,6 +20,7 @@ export interface RPCResult<T = unknown> {
   ok: boolean;
   data: T;
   error: string | null;
+  warning: string | null;
 }
 
 export async function rpc<T = unknown>(
@@ -33,6 +34,6 @@ export async function rpc<T = unknown>(
     return result;
   } catch (err) {
     console.error(`[rpc] error in ${method}:`, err);
-    return { ok: false, data: null as T, error: String(err) };
+    return { ok: false, data: null as T, error: String(err), warning: null };
   }
 }

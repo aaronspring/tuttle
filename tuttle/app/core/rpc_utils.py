@@ -47,11 +47,12 @@ def dump(obj: Any) -> Any:
 
 
 def unwrap(result) -> Dict[str, Any]:
-    """Convert an IntentResult to a ``{ok, data, error}`` envelope."""
+    """Convert an IntentResult to a ``{ok, data, error, warning}`` envelope."""
     return {
         "ok": result.was_intent_successful,
         "data": dump(result.data),
         "error": result.error_msg or None,
+        "warning": result.warning or None,
     }
 
 

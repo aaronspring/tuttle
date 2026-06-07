@@ -171,9 +171,11 @@ def _convert_html_to_pdf_with_weasyprint(
     css_paths=[],
 ):
     """Implementation of convert_html_to_pdf using weasyprint."""
-    # On macOS with Homebrew, weasyprint needs the Homebrew lib path
-    # to find pango/gobject native libraries at runtime.
-    if sys.platform == "darwin":
+    # In dev mode on macOS, weasyprint needs the Homebrew lib path to find
+    # pango/gobject native libraries at runtime.  In the frozen (PyInstaller)
+    # bundle the dylibs are co-located with the binary and DYLD_* is stripped
+    # by SIP for notarized apps, so this block is skipped.
+    if sys.platform == "darwin" and not getattr(sys, "frozen", False):
         import subprocess
 
         try:
@@ -185,7 +187,11 @@ def _convert_html_to_pdf_with_weasyprint(
                     f"{lib_path}:{existing}" if existing else lib_path
                 )
         except (subprocess.CalledProcessError, FileNotFoundError):
-            pass  # Homebrew not installed; hope libraries are on the default path
+            logger.warning(
+                "Homebrew not found — native PDF libraries (pango, harfbuzz, "
+                "fontconfig) may be missing. Install them with: "
+                "brew install pango gdk-pixbuf libffi"
+            )
     try:
         import weasyprint
     except ImportError:

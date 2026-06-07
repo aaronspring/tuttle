@@ -119,10 +119,12 @@ def _serialize(result) -> dict:
     if hasattr(result, "was_intent_successful"):
         if not result.was_intent_successful:
             return unwrap(result)
+        warning = getattr(result, "warning", "") or None
         data = result.data
     else:
+        warning = None
         data = result
-    return {"ok": True, "data": dump(data), "error": None}
+    return {"ok": True, "data": dump(data), "error": None, "warning": warning}
 
 
 # ---------------------------------------------------------------------------
