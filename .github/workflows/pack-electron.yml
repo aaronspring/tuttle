@@ -33,25 +33,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # Native libraries required by WeasyPrint (PDF rendering).
-    # PyInstaller's hook-weasyprint.py bundles these into the frozen app
-    # at build time via ctypes.util.find_library(), so they must be
-    # present on the runner.
-    - name: Install native rendering libraries (macOS)
-      if: runner.os == 'macOS'
-      run: brew install pango ghostscript
-    - name: Install native rendering libraries (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y libpango1.0-dev libharfbuzz-dev \
-          libfontconfig1-dev libgdk-pixbuf-2.0-dev libffi-dev
-    - name: Install native rendering libraries (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        C:\msys64\usr\bin\bash -lc 'pacman -S mingw-w64-x86_64-pango --noconfirm'
-        echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH
-
     # Python sidecar
     - name: Install uv
       uses: astral-sh/setup-uv@v4

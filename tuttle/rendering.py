@@ -1,7 +1,5 @@
 """Document rendering."""
 
-import os
-import sys
 from pathlib import Path
 from typing import Optional
 import shutil
@@ -129,108 +127,18 @@ def convert_html_to_pdf(
     out_path,
     css_paths=[],
 ):
-    """_summary_
+    """Convert an HTML file to PDF using plutoprint.
 
-    Args:
-        source_dir (_type_): _description_
-        dest_dir (_type_): _description_
+    CSS is resolved automatically from <link> tags in the HTML via
+    the file:// URL.  The *css_paths* parameter is accepted for
+    interface compatibility but ignored.
     """
     logger.info(f"converting html to pdf: {in_path} -> {out_path}")
-    _convert_html_to_pdf_with_weasyprint(
-        in_path=in_path,
-        out_path=out_path,
-        css_paths=css_paths,
-    )
+    import plutoprint
 
-
-def _convert_html_to_pdf_with_pdfkit(
-    in_path,
-    out_path,
-    css_paths=[],
-):
-    """Implementation of convert_html_to_pdf using pdfkit."""
-    # pdfkit needs wkhtmltopdf to be installed
-    if getattr(sys, "frozen", False):
-        os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ["PATH"]
-    try:
-        import pdfkit
-    except ImportError:
-        logger.error("Please install pdfkit and wkhtmltopdf")
-        raise
-    try:
-        pdfkit.from_file(input=in_path, output_path=out_path, css=css_paths)
-    except OSError as ex:
-        # Exit with code 1 due to network error: ProtocolUnknownError
-        # ignore this error since a correct output is produced anyway
-        pass
-
-
-def _convert_html_to_pdf_with_weasyprint(
-    in_path,
-    out_path,
-    css_paths=[],
-):
-    """Implementation of convert_html_to_pdf using weasyprint."""
-    # In dev mode on macOS, weasyprint needs the Homebrew lib path to find
-    # pango/gobject native libraries at runtime.  In the frozen (PyInstaller)
-    # bundle the dylibs are co-located with the binary and DYLD_* is stripped
-    # by SIP for notarized apps, so this block is skipped.
-    if sys.platform == "darwin" and not getattr(sys, "frozen", False):
-        import subprocess
-
-        try:
-            brew_prefix = subprocess.check_output(["brew", "--prefix"]).decode().strip()
-            lib_path = os.path.join(brew_prefix, "lib")
-            existing = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
-            if lib_path not in existing:
-                os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = (
-                    f"{lib_path}:{existing}" if existing else lib_path
-                )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.warning(
-                "Homebrew not found — native PDF libraries (pango, harfbuzz, "
-                "fontconfig) may be missing. Install them with: "
-                "brew install pango gdk-pixbuf libffi"
-            )
-    try:
-        import weasyprint
-    except ImportError:
-        logger.error("Please install weasyprint")
-        raise
-    css_paths = [Path(css_path).resolve() for css_path in css_paths]
-    logger.debug(f"css_paths: {css_paths}")
-    (
-        weasyprint.HTML(in_path).write_pdf(
-            out_path,
-            stylesheets=css_paths,
-        )
-    )
-
-
-def _convert_html_to_pdf_with_QT(
-    in_path,
-    out_path,
-    css_paths=[],
-):
-    """Implementation of convert_html_to_pdf using QT."""
-    try:
-        from PyQt5 import QtCore, QtWidgets, QtWebEngineWidgets
-    except ImportError:
-        logger.error("Please install PyQt5")
-        raise
-    app = QtWidgets.QApplication(sys.argv)
-    loader = QtWebEngineWidgets.QWebEngineView()
-    loader.setZoomFactor(1)
-    loader.page().pdfPrintingFinished.connect(lambda *args: print("finished:", args))
-    loader.load(QtCore.QUrl(in_path))
-
-    def emit_pdf(finished):
-        loader.show()
-        loader.page().printToPdf(out_path)
-
-    loader.loadFinished.connect(emit_pdf)
-
-    app.exec()
+    book = plutoprint.Book(plutoprint.PAGE_SIZE_A4)
+    book.load_url(Path(in_path).resolve().as_uri())
+    book.write_to_pdf(str(out_path))
 
 
 def render_invoice(

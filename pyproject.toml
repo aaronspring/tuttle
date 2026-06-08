@@ -31,7 +31,7 @@ dependencies = [
     "babel",
     "loguru",
     "pandera",
-    "weasyprint",
+    "plutoprint",
     "faker",
     "PyPDF2",
     "pymupdf",

@@ -87,11 +87,8 @@ hiddenimports = [
     "alembic.autogenerate",
     "mako",
     "mako.template",
-    # WeasyPrint rendering chain (cairocffi removed — not used by WeasyPrint 68+)
-    "weasyprint",
-    "cssselect2",
-    "tinycss2",
-    "pyphen",
+    # PDF rendering (C++ engine with prebuilt binaries, no system dependencies)
+    "plutoprint",
     # Other potentially dynamic imports
     "pycountry",
     "pycountry.databases",

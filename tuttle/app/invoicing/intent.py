@@ -813,9 +813,9 @@ Best regards,
             )
 
     def check_rendering(self) -> IntentResult:
-        """Verify that WeasyPrint and its native libs are loadable."""
+        """Verify that the PDF rendering engine is loadable."""
         try:
-            import weasyprint  # noqa: F401 — triggers ffi.py dlopen chain
+            import plutoprint  # noqa: F401
 
             return IntentResult(was_intent_successful=True)
         except Exception as ex:
