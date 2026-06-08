@@ -1,8 +1,10 @@
 """Business logic for the dashboard view."""
 
+import datetime
 
 from ..core.abstractions import SQLModelDataSourceMixin, Intent
 from ..core.intent_result import IntentResult
+from ..timetracking.data_source import TimeTrackingDataFrameSource
 
 from ...model import Contract, Invoice, Project, FinancialGoal, User
 from ...kpi import (
@@ -11,7 +13,11 @@ from ...kpi import (
     monthly_spendable_breakdown,
     project_budget_status,
 )
-from ...forecasting import revenue_curve
+from ...forecasting import (
+    revenue_curve_with_calendar,
+    cash_flow_projection,
+    monthly_revenue_from_calendar,
+)
 
 
 class DashboardIntent(SQLModelDataSourceMixin, Intent):
@@ -19,6 +25,7 @@ class DashboardIntent(SQLModelDataSourceMixin, Intent):
 
     def __init__(self):
         SQLModelDataSourceMixin.__init__(self)
+        self._time_data_source = TimeTrackingDataFrameSource()
 
     def _get_country(self) -> str:
         """Determine the user's operating country for tax purposes."""
@@ -102,11 +109,19 @@ class DashboardIntent(SQLModelDataSourceMixin, Intent):
             )
 
     def get_revenue_curve(self, forecast_months: int = 6) -> IntentResult:
-        """Get combined historical + forecast revenue curve."""
+        """Get combined historical + calendar-based + contract-fallback revenue curve."""
         try:
             invoices = self.query(Invoice)
             contracts = self.query(Contract)
-            data = revenue_curve(invoices, contracts, forecast_months=forecast_months)
+            projects = self.query(Project)
+            time_data = self._time_data_source.get_data_frame()
+            data = revenue_curve_with_calendar(
+                invoices,
+                contracts,
+                projects,
+                time_data,
+                forecast_months=forecast_months,
+            )
             return IntentResult(was_intent_successful=True, data=data)
         except Exception as e:
             return IntentResult(
@@ -116,11 +131,39 @@ class DashboardIntent(SQLModelDataSourceMixin, Intent):
                 exception=e,
             )
 
+    def get_cash_flow(self, forecast_months: int = 6) -> IntentResult:
+        """Get cash flow projection based on calendar allocations."""
+        try:
+            contracts = self.query(Contract)
+            projects = self.query(Project)
+            time_data = self._time_data_source.get_data_frame()
+
+            today = datetime.date.today()
+            forecast_start = today.replace(day=1)
+            forecast_end = (
+                forecast_start + datetime.timedelta(days=30 * forecast_months)
+            ).replace(day=1)
+
+            rev_forecast = monthly_revenue_from_calendar(
+                time_data, projects, forecast_start, forecast_end
+            )
+
+            data = cash_flow_projection(rev_forecast, contracts)
+            return IntentResult(was_intent_successful=True, data=data)
+        except Exception as e:
+            return IntentResult(
+                was_intent_successful=False,
+                error_msg="Failed to generate cash flow projection.",
+                log_message=f"DashboardIntent.get_cash_flow: {e}",
+                exception=e,
+            )
+
     def get_project_budgets(self) -> IntentResult:
-        """Get budget utilization for all projects."""
+        """Get budget utilization for all projects, including planned hours."""
         try:
             projects = self.query(Project)
-            data = project_budget_status(projects)
+            time_data = self._time_data_source.get_data_frame()
+            data = project_budget_status(projects, time_data=time_data)
             return IntentResult(was_intent_successful=True, data=data)
         except Exception as e:
             return IntentResult(

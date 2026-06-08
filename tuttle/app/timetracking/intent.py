@@ -32,6 +32,18 @@ from .data_source import (
     TimeTrackingFileCalendarSource,
     TimeTrackingSpreadsheetSource,
 )
+from ...timetracking import get_planning_summary
+
+
+def _project_tag_maps(projects) -> tuple[dict, dict]:
+    tag_to_title = {}
+    tag_to_workday = {}
+    for p in projects or []:
+        if p.tag:
+            tag_to_title[p.tag] = p.title
+            if p.contract:
+                tag_to_workday[p.tag] = p.contract.units_per_workday
+    return tag_to_title, tag_to_workday
 
 
 class TimeTrackingIntent(Intent):
@@ -72,12 +84,17 @@ class TimeTrackingIntent(Intent):
         if month is None:
             month = datetime.date.today().month
         proj_result = ProjectsIntent().get_all()
-        tag_to_title = {}
-        if proj_result.was_intent_successful and proj_result.data:
-            tag_to_title = {p.tag: p.title for p in proj_result.data}
+        projects = (
+            proj_result.data
+            if proj_result.was_intent_successful and proj_result.data
+            else []
+        )
+        tag_to_title, tag_to_workday = _project_tag_maps(projects)
         return IntentResult(
             was_intent_successful=True,
-            data=build_calendar_data(df, year, month, project_tag, tag_to_title),
+            data=build_calendar_data(
+                df, year, month, project_tag, tag_to_title, tag_to_workday
+            ),
         )
 
     def import_ics(self, content: str, name: str = "imported.ics") -> IntentResult:
@@ -147,7 +164,7 @@ class TimeTrackingIntent(Intent):
         elif isinstance(from_date, str):
             from_date = datetime.date.fromisoformat(from_date)
         if to_date is None:
-            to_date = datetime.date.today()
+            to_date = datetime.date.max
         elif isinstance(to_date, str):
             to_date = datetime.date.fromisoformat(to_date)
         try:
@@ -203,7 +220,7 @@ class TimeTrackingIntent(Intent):
             if calendar_id:
                 try:
                     from_date = datetime.date.today() - datetime.timedelta(days=365)
-                    to_date = datetime.date.today()
+                    to_date = datetime.date.max
                     new_df = fetch_events(calendar_id, from_date, to_date)
                     if not new_df.empty:
                         ds.store_data_frame(new_df)
@@ -227,6 +244,60 @@ class TimeTrackingIntent(Intent):
             data={"restored": restored, "source": source_type if restored else "cache"},
         )
 
+    def sync(self) -> IntentResult:
+        """Re-fetch from the configured calendar source (manual refresh)."""
+        ds = self._timetracking_data_frame_source
+        config = ds.get_source_config()
+        source_type = config.get("source_type", "")
+        if not source_type:
+            return IntentResult(
+                was_intent_successful=True,
+                data={"synced": False, "reason": "no_config"},
+            )
+        if source_type == "system" and is_available():
+            calendar_id = config.get("calendar_id", "")
+            if calendar_id:
+                try:
+                    from_date = datetime.date.today() - datetime.timedelta(days=365)
+                    to_date = datetime.date.max
+                    new_df = fetch_events(calendar_id, from_date, to_date)
+                    if not new_df.empty:
+                        ds.store_data_frame(new_df)
+                        ds.save_to_cache()
+                        return IntentResult(
+                            was_intent_successful=True,
+                            data={"synced": True, "count": len(new_df)},
+                        )
+                except Exception as ex:
+                    logger.warning(f"Failed to sync from system calendar: {ex}")
+                    return IntentResult(
+                        was_intent_successful=False,
+                        error_msg=f"Calendar sync failed: {ex}",
+                    )
+        return IntentResult(
+            was_intent_successful=True,
+            data={
+                "synced": False,
+                "reason": f"source_type '{source_type}' not syncable",
+            },
+        )
+
+    def get_planning_summary(self) -> IntentResult:
+        """Per-project summary of planned (future) hours and revenue."""
+        df = self._timetracking_data_frame_source.get_data_frame()
+        if df is None or df.empty:
+            return IntentResult(was_intent_successful=True, data=[])
+        proj_result = ProjectsIntent().get_all()
+        projects = (
+            proj_result.data
+            if proj_result.was_intent_successful and proj_result.data
+            else []
+        )
+        return IntentResult(
+            was_intent_successful=True,
+            data=get_planning_summary(df, projects),
+        )
+
     def get_summary(self, project_tag: Optional[str] = None) -> IntentResult:
         df = self._timetracking_data_frame_source.get_data_frame()
         if df is None or df.empty:
@@ -239,12 +310,15 @@ class TimeTrackingIntent(Intent):
                 },
             )
         proj_result = ProjectsIntent().get_all()
-        tag_to_title = {}
-        if proj_result.was_intent_successful and proj_result.data:
-            tag_to_title = {p.tag: p.title for p in proj_result.data}
+        projects = (
+            proj_result.data
+            if proj_result.was_intent_successful and proj_result.data
+            else []
+        )
+        tag_to_title, tag_to_workday = _project_tag_maps(projects)
         return IntentResult(
             was_intent_successful=True,
-            data=build_summary(df, tag_to_title, project_tag),
+            data=build_summary(df, tag_to_title, project_tag, tag_to_workday),
         )
 
     # -- Legacy internal methods -----------------------------------------------

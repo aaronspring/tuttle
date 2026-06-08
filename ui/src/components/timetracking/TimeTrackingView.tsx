@@ -18,6 +18,7 @@ type TimeEvent = {
   description: string;
   all_day: boolean;
   date: string;
+  is_future: boolean;
 };
 
 type DayInfo = { date: string; hours: number; all_day_count?: number; tags: string[]; count: number };
@@ -30,7 +31,7 @@ type CalendarData = {
   events: TimeEvent[];
   projects: { tag: string; title: string; hours: number; event_count: number }[];
   days: Record<string, DayInfo>;
-  summary: { total_events: number; total_hours: number };
+  summary: { total_events: number; total_hours: number; planned_hours: number; planned_events: number };
 };
 
 type SystemCalendar = { id: string; title: string; source: string };
@@ -81,6 +82,7 @@ export function TimeTrackingView() {
   const [sysCalAuthStatus, setSysCalAuthStatus] = useState<string | null>(null);
   const [sysCalLoading, setSysCalLoading] = useState(false);
   const [restoringSource, setRestoringSource] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   const isMac = typeof window !== "undefined" && window.tuttle?.platform === "darwin";
 
@@ -170,7 +172,14 @@ export function TimeTrackingView() {
     loadData();
   }
 
-  // ── Clear / change source ───────────────────────────────────────────────
+  // ── Sync / clear ───────────────────────────────────────────────────────
+
+  async function syncCalendar() {
+    setSyncing(true);
+    await rpc("timetracking.sync");
+    await loadData();
+    setSyncing(false);
+  }
 
   async function clearData() {
     await rpc("timetracking.clear");
@@ -208,21 +217,38 @@ export function TimeTrackingView() {
         <h2 className="text-sm font-semibold">Time Tracking</h2>
         <div className="flex-1" />
         {monthHasEvents && (
-          <div className="flex items-center gap-1.5 text-xs text-primary">
-            <Clock size={13} className="text-secondary" />
-            <span className="tabular-nums font-bold">{calData!.summary.total_hours}h</span>
-            <span className="text-secondary">across</span>
-            <span className="tabular-nums font-bold">{calData!.summary.total_events}</span>
-            <span className="text-secondary">events</span>
+          <div className="flex items-center gap-3 text-xs text-primary">
+            <div className="flex items-center gap-1.5">
+              <Clock size={13} className="text-secondary" />
+              <span className="tabular-nums font-bold">{calData!.summary.total_hours}h</span>
+              <span className="text-secondary">across</span>
+              <span className="tabular-nums font-bold">{calData!.summary.total_events}</span>
+              <span className="text-secondary">events</span>
+            </div>
+            {calData!.summary.planned_hours > 0 && (
+              <div className="flex items-center gap-1.5 text-blue-400">
+                <span className="text-secondary">·</span>
+                <span className="tabular-nums font-bold">{calData!.summary.planned_hours}h</span>
+                <span className="text-blue-400/70">planned</span>
+              </div>
+            )}
           </div>
         )}
         {hasAnyData && (
-          <button onClick={clearData}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted hover:text-red-400 hover:bg-bg-hover transition-colors"
-            title="Clear imported data and choose a different source">
-            <Trash2 size={13} />
-            <span>Change source</span>
-          </button>
+          <>
+            <button onClick={syncCalendar} disabled={syncing}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-secondary hover:text-primary hover:bg-bg-hover transition-colors disabled:opacity-50"
+              title="Re-sync with calendar">
+              <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+              <span>{syncing ? "Syncing…" : "Sync"}</span>
+            </button>
+            <button onClick={clearData}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted hover:text-red-400 hover:bg-bg-hover transition-colors"
+              title="Clear imported data and choose a different source">
+              <Trash2 size={13} />
+              <span>Change source</span>
+            </button>
+          </>
         )}
       </div>
 
@@ -502,6 +528,7 @@ function MonthGrid({
           const isSelected = dateStr === selectedDay;
           const dayOfWeek = (first_weekday + day - 1) % 7;
           const isWeekend = dayOfWeek >= 5;
+          const isFuture = dateStr > todayStr;
 
           return (
             <button
@@ -509,7 +536,8 @@ function MonthGrid({
               onClick={() => onSelectDay(dateStr)}
               className={`bg-bg-card min-h-[80px] p-2 text-left transition-colors relative group
                 ${isSelected ? "ring-2 ring-accent ring-inset bg-bg-selected" : "hover:bg-bg-hover"}
-                ${isWeekend ? "opacity-60" : ""}`}
+                ${isWeekend ? "opacity-60" : ""}
+                ${isFuture && info ? "bg-blue-500/[0.03]" : ""}`}
             >
               <span className={`text-[13px] font-semibold ${isToday ? "bg-accent text-white px-1.5 py-0.5 rounded-full" : "text-primary"}`}>
                 {day}
@@ -519,12 +547,16 @@ function MonthGrid({
                   <div className="flex gap-1 flex-wrap">
                     {info.tags.map((t) => (
                       <div key={t} className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: tagColor(t, allTags) }}
-                        title={t}
+                        style={{
+                          backgroundColor: tagColor(t, allTags),
+                          opacity: isFuture ? 0.5 : 1,
+                          border: isFuture ? `1.5px dashed ${tagColor(t, allTags)}` : "none",
+                        }}
+                        title={`${t}${isFuture ? " (planned)" : ""}`}
                       />
                     ))}
                   </div>
-                  <div className="text-[11px] font-medium tabular-nums text-secondary">
+                  <div className={`text-[11px] font-medium tabular-nums ${isFuture ? "text-blue-400/70" : "text-secondary"}`}>
                     {formatDayDuration(info)}
                   </div>
                 </div>
@@ -578,12 +610,18 @@ function DayDetail({
       ) : (
         <div className="divide-y divide-border-subtle">
           {events.map((ev, i) => (
-            <div key={i} className="px-3 py-2 flex items-start gap-2.5">
+            <div key={i} className={`px-3 py-2 flex items-start gap-2.5 ${ev.is_future ? "opacity-70" : ""}`}>
               <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0"
-                style={{ backgroundColor: tagColor(ev.tag, allTags) }} />
+                style={{
+                  backgroundColor: ev.is_future ? "transparent" : tagColor(ev.tag, allTags),
+                  border: ev.is_future ? `1.5px dashed ${tagColor(ev.tag, allTags)}` : "none",
+                }} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate">{ev.title || "Untitled"}</span>
+                  {ev.is_future && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 shrink-0">planned</span>
+                  )}
                   {ev.tag && (
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
                       style={{ color: tagColor(ev.tag, allTags), backgroundColor: tagColor(ev.tag, allTags) + "1F" }}>

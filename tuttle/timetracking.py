@@ -13,6 +13,38 @@ from tuttle.dev import deprecated
 from . import schema
 from .calendar import Calendar, ICloudCalendar, ICSCalendar
 from .model import Project, Timesheet, TimeTrackingItem, User
+from .time import TimeUnit
+
+DEFAULT_WORKDAY_HOURS = 8
+
+
+def event_hours(row, units_per_workday: int = DEFAULT_WORKDAY_HOURS) -> float:
+    """Hours credited for a calendar row; all-day counts as one workday."""
+    if bool(row.get("all_day", False)):
+        return float(units_per_workday)
+    dur = row.get("duration")
+    if dur is None or not hasattr(dur, "total_seconds"):
+        return 0.0
+    return dur.total_seconds() / 3600
+
+
+def sum_hours_by_tag(
+    df: DataFrame,
+    tag_to_workday: dict | None = None,
+) -> dict[str, float]:
+    """Sum effective hours grouped by project tag."""
+    tag_to_workday = tag_to_workday or {}
+    totals: dict[str, float] = {}
+    for _, row in df.iterrows():
+        tag = str(row.get("tag", ""))
+        workday = tag_to_workday.get(tag, DEFAULT_WORKDAY_HOURS)
+        totals[tag] = totals.get(tag, 0.0) + event_hours(row, workday)
+    return totals
+
+
+def total_event_hours(df: DataFrame, tag_to_workday: dict | None = None) -> float:
+    """Sum effective hours across all rows."""
+    return round(sum(sum_hours_by_tag(df, tag_to_workday).values()), 1)
 
 
 def generate_timesheet(
@@ -237,14 +269,80 @@ def get_time_planning_data(
     source,
     from_date: datetime.date = None,
 ) -> DataFrame:
-    """Get time planning data from a source."""
+    """Get future calendar events as time planning data."""
     if from_date is None:
         from_date = datetime.date.today()
     if issubclass(type(source), Calendar):
-        cal = source
-        planning_data = cal.to_data()
+        planning_data = source.to_data()
     elif isinstance(source, pandas.DataFrame):
         planning_data = source
         schema.time_tracking.validate(planning_data)
+    else:
+        raise TypeError(f"Unsupported source type: {type(source)}")
     planning_data = planning_data[str(from_date) :]
     return planning_data
+
+
+def get_tracked_data(
+    source,
+    until_date: datetime.date = None,
+) -> DataFrame:
+    """Get past calendar events (tracked time)."""
+    if until_date is None:
+        until_date = datetime.date.today()
+    if issubclass(type(source), Calendar):
+        data = source.to_data()
+    elif isinstance(source, pandas.DataFrame):
+        data = source
+    else:
+        raise TypeError(f"Unsupported source type: {type(source)}")
+    return data[: str(until_date)]
+
+
+def get_planning_summary(
+    source,
+    projects: list,
+) -> list:
+    """Per-project aggregation of future planned hours with contract-derived revenue.
+
+    Returns a list of dicts with: tag, title, planned_hours, planned_revenue,
+    hours_budget, currency.
+    """
+    planning_data = get_time_planning_data(source)
+    if planning_data.empty:
+        return []
+
+    tag_to_project = {p.tag: p for p in projects if p.tag}
+    tag_to_workday = {
+        p.tag: p.contract.units_per_workday for p in projects if p.tag and p.contract
+    }
+    planned_by_tag = sum_hours_by_tag(planning_data, tag_to_workday)
+
+    results = []
+    for tag, hours in sorted(planned_by_tag.items(), key=lambda x: -x[1]):
+        project = tag_to_project.get(tag)
+        contract = project.contract if project else None
+        planned_revenue = 0.0
+        hours_budget = None
+        currency = "EUR"
+        if contract:
+            currency = contract.currency or "EUR"
+            unit_hours = (
+                contract.units_per_workday if contract.unit == TimeUnit.day else 1
+            )
+            billable_units = hours / unit_hours
+            planned_revenue = float(billable_units * float(contract.rate))
+            if contract.volume:
+                hours_budget = float(contract.volume) * unit_hours
+
+        results.append(
+            {
+                "tag": tag,
+                "title": project.title if project else tag,
+                "planned_hours": round(hours, 1),
+                "planned_revenue": round(planned_revenue, 2),
+                "hours_budget": hours_budget,
+                "currency": currency,
+            }
+        )
+    return results

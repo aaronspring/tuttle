@@ -4,8 +4,11 @@ import datetime
 from decimal import Decimal
 from typing import List, Optional, NamedTuple
 
+from pandas import DataFrame
+
 from .model import Contract, Invoice, Project, User
 from .time import TimeUnit
+from .timetracking import event_hours, sum_hours_by_tag
 from .tax import get_tax_system
 from .tax_reserves import compute_spendable_income
 
@@ -295,35 +298,73 @@ def monthly_spendable_breakdown(
 
 def project_budget_status(
     projects: List[Project],
+    time_data: Optional[DataFrame] = None,
 ) -> list:
-    """Budget utilization for each project with timesheets.
+    """Budget utilization for each project, including planned (future) hours.
+
+    When *time_data* (the full calendar DataFrame) is provided, future events
+    are counted as ``hours_planned``.
 
     Returns a list of dicts with keys: project_id, project, hours_tracked,
-    hours_budget, progress.  Skips projects without a contract volume or
-    without any tracked time.
+    hours_planned, hours_budget, hours_remaining, planned_revenue, progress,
+    budget_exceeded.  Skips projects without a contract volume or without any
+    tracked or planned time.
     """
+    today = datetime.date.today()
+    planned_by_tag: dict = {}
+
+    if time_data is not None and not time_data.empty:
+        future = time_data[time_data.index.date >= today]
+        if not future.empty:
+            tag_to_workday = {
+                p.tag: p.contract.units_per_workday
+                for p in projects
+                if p.tag and p.contract
+            }
+            planned_by_tag = sum_hours_by_tag(future, tag_to_workday)
+
     results = []
     for project in projects:
         if not project.contract or not project.contract.volume:
             continue
+
         hours_tracked = Decimal(0)
         for ts in project.timesheets:
             for item in ts.items:
                 hours_tracked += Decimal(str(item.duration.total_seconds() / 3600))
-        if hours_tracked == 0:
+
+        hours_planned = Decimal(str(planned_by_tag.get(project.tag, 0)))
+
+        if hours_tracked == 0 and hours_planned == 0:
             continue
-        hours_budget = Decimal(str(project.contract.volume))
-        if project.contract.unit == TimeUnit.day:
-            hours_budget *= project.contract.units_per_workday
-        progress = float(hours_tracked / hours_budget) if hours_budget > 0 else 0.0
+
+        contract = project.contract
+        hours_budget = Decimal(str(contract.volume))
+        if contract.unit == TimeUnit.day:
+            hours_budget *= contract.units_per_workday
+
+        total_used = hours_tracked + hours_planned
+        progress = float(total_used / hours_budget) if hours_budget > 0 else 0.0
+        hours_remaining = float(hours_budget - total_used)
+
+        unit_hours = contract.units_per_workday if contract.unit == TimeUnit.day else 1
+        planned_revenue = float(
+            Decimal(str(float(hours_planned) / unit_hours)) * contract.rate
+        )
+
+        budget_exceeded = total_used > hours_budget
 
         results.append(
             {
                 "project_id": project.id,
                 "project": project.title,
                 "hours_tracked": float(hours_tracked),
+                "hours_planned": float(hours_planned),
                 "hours_budget": float(hours_budget),
+                "hours_remaining": hours_remaining,
+                "planned_revenue": round(planned_revenue, 2),
                 "progress": min(progress, 1.0),
+                "budget_exceeded": budget_exceeded,
             }
         )
     return results

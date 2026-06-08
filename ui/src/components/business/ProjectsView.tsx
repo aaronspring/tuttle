@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import {
   FolderKanban, Building2, FileSignature, Calendar, Clock, FileText, Search,
   Plus, Trash2, Save, X, FileUp, Sparkles, Check, CheckCheck, Loader2, CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { rpc } from "../../api/rpc";
 import { str, int, num, bool, entity, dateRange, projectStatus } from "../../api/entity";
@@ -16,8 +17,12 @@ interface BudgetEntry {
   project_id: number;
   project: string;
   hours_tracked: number;
+  hours_planned: number;
   hours_budget: number;
+  hours_remaining: number;
+  planned_revenue: number;
   progress: number;
+  budget_exceeded: boolean;
 }
 
 type Mode = "view" | "edit" | "create" | "import";
@@ -304,13 +309,24 @@ export function ProjectsView() {
                   <DetailRow label="Contract" value={selectedContract ? str(selectedContract, "title") : "—"} />
                   <DetailRow label="Rate" value={selectedContract ? `${str(selectedContract, "rate")} ${str(selectedContract, "currency")}/${str(selectedContract, "unit")}` : "—"} />
                 </div>
-                {selected.id != null && budgetsMap[selected.id as number] && (
-                  <ProgressBar
-                    progress={budgetsMap[selected.id as number].progress}
-                    label="Time Budget"
-                    subtitle={`${budgetsMap[selected.id as number].hours_tracked.toFixed(1)}h / ${budgetsMap[selected.id as number].hours_budget.toFixed(0)}h`}
-                  />
-                )}
+                {selected.id != null && budgetsMap[selected.id as number] && (() => {
+                  const b = budgetsMap[selected.id as number];
+                  return (
+                    <div className="space-y-2">
+                      <BudgetBar budget={b} />
+                      {b.hours_planned > 0 && (
+                        <div className="text-xs text-secondary">
+                          <span className="text-blue-400 font-medium">{b.hours_planned.toFixed(1)}h planned</span>
+                          {b.planned_revenue > 0 && (
+                            <span className="ml-2 text-tertiary">
+                              ≈ {b.planned_revenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} revenue
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-2 text-tertiary">
@@ -368,10 +384,48 @@ function ProjectCard({ project, budgetsMap }: { project: Entity; color: string; 
         </div>
       )}
       {budget && (
-        <ProgressBar
-          progress={budget.progress}
-          subtitle={`${budget.hours_tracked.toFixed(1)}h / ${budget.hours_budget.toFixed(0)}h`}
+        <BudgetBar budget={budget} />
+      )}
+    </div>
+  );
+}
+
+function BudgetBar({ budget: b }: { budget: BudgetEntry }) {
+  const trackedPct = b.hours_budget > 0 ? Math.min(b.hours_tracked / b.hours_budget, 1) : 0;
+  const plannedPct = b.hours_budget > 0 ? Math.min(b.hours_planned / b.hours_budget, 1 - trackedPct) : 0;
+  const subtitle = b.hours_planned > 0
+    ? `${b.hours_tracked.toFixed(1)}h tracked + ${b.hours_planned.toFixed(1)}h planned / ${b.hours_budget.toFixed(0)}h`
+    : `${b.hours_tracked.toFixed(1)}h / ${b.hours_budget.toFixed(0)}h`;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-medium truncate">Time Budget</span>
+          {b.budget_exceeded && (
+            <AlertTriangle size={12} className="text-amber-400 shrink-0" />
+          )}
+        </div>
+        <span className="text-xs text-secondary tabular-nums">{subtitle}</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-bg-hover overflow-hidden flex">
+        <div
+          className="h-full rounded-l-full bg-secondary transition-all duration-300"
+          style={{ width: `${trackedPct * 100}%` }}
         />
+        {plannedPct > 0 && (
+          <div
+            className="h-full transition-all duration-300"
+            style={{
+              width: `${plannedPct * 100}%`,
+              background: "repeating-linear-gradient(45deg, #3b82f6 0, #3b82f6 2px, transparent 2px, transparent 5px)",
+              opacity: 0.5,
+            }}
+          />
+        )}
+      </div>
+      {b.budget_exceeded && (
+        <div className="text-[11px] text-amber-400 font-medium">Budget exceeded</div>
       )}
     </div>
   );

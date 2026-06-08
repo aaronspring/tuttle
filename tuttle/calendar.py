@@ -91,27 +91,44 @@ class ICSCalendar(Calendar):
     @check_io(out=schema.time_tracking)
     def to_data(self) -> DataFrame:
         """Convert ics.Calendar to pandas.DataFrame"""
-        # TODO: handle errors from data transformation here
-        event_data = pandas.DataFrame(
-            [
-                (
-                    event.name,
-                    event.description,
-                    pandas.to_datetime(event.begin.datetime).tz_convert("CET"),
-                    pandas.to_datetime(event.end.datetime).tz_convert("CET"),
-                    event.all_day,
-                    # TODO: handle time zones
-                    # pandas.to_datetime(event.begin.datetime).tz_convert("CET"),
-                    # pandas.to_datetime(event.end.datetime).tz_convert("CET"),
+        rows = []
+        for event in self.ical.events:
+            begin = pandas.to_datetime(event.begin.datetime).tz_convert("CET")
+            end = pandas.to_datetime(event.end.datetime).tz_convert("CET")
+            is_all_day = event.all_day
+            title = event.name
+            description = event.description
+
+            if is_all_day and (end - begin).days > 1:
+                day = begin
+                while day < end:
+                    day_end = day + pandas.Timedelta(days=1)
+                    rows.append(
+                        {
+                            "begin": day,
+                            "title": title,
+                            "description": description,
+                            "end": day_end,
+                            "all_day": True,
+                            "duration": pandas.Timedelta(days=1),
+                            "tag": extract_hashtag(title),
+                        }
+                    )
+                    day = day_end
+            else:
+                rows.append(
+                    {
+                        "begin": begin,
+                        "title": title,
+                        "description": description,
+                        "end": end,
+                        "all_day": is_all_day,
+                        "duration": end - begin,
+                        "tag": extract_hashtag(title),
+                    }
                 )
-                for event in self.ical.events
-            ],
-            columns=["title", "description", "begin", "end", "all_day"],
-        )
-        event_data["duration"] = event_data["end"] - event_data["begin"]
-        # apply the function extract_hashtag to the column title to derive the column tag
-        event_data["tag"] = event_data["title"].apply(extract_hashtag)
-        # event_data["time"] = event_data["begin"]
+
+        event_data = pandas.DataFrame(rows)
         event_data = event_data.set_index("begin")
         return event_data
 

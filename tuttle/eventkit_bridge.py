@@ -375,21 +375,50 @@ def fetch_events(
             continue
 
         title = ev.get("title", "")
-        rows.append(
-            {
-                "begin": pandas.Timestamp(begin_dt).tz_convert("CET")
-                if begin_dt.tzinfo
-                else pandas.Timestamp(begin_dt).tz_localize("UTC").tz_convert("CET"),
-                "title": title,
-                "description": ev.get("description", ""),
-                "end": pandas.Timestamp(end_dt).tz_convert("CET")
-                if end_dt.tzinfo
-                else pandas.Timestamp(end_dt).tz_localize("UTC").tz_convert("CET"),
-                "all_day": ev.get("all_day", False),
-                "duration": end_dt - begin_dt,
-                "tag": extract_hashtag(title),
-            }
-        )
+        is_all_day = ev.get("all_day", False)
+        tag = extract_hashtag(title)
+        description = ev.get("description", "")
+
+        def _ts(dt):
+            return (
+                pandas.Timestamp(dt).tz_convert("CET")
+                if dt.tzinfo
+                else pandas.Timestamp(dt).tz_localize("UTC").tz_convert("CET")
+            )
+
+        if is_all_day and (end_dt - begin_dt).days > 1:
+            # Expand multi-day all-day events into one row per day
+            day = begin_dt.date()
+            end_date = end_dt.date()
+            while day < end_date:
+                day_start = datetime.datetime.combine(
+                    day, datetime.time.min, tzinfo=begin_dt.tzinfo
+                )
+                day_end = day_start + datetime.timedelta(days=1)
+                rows.append(
+                    {
+                        "begin": _ts(day_start),
+                        "title": title,
+                        "description": description,
+                        "end": _ts(day_end),
+                        "all_day": True,
+                        "duration": datetime.timedelta(days=1),
+                        "tag": tag,
+                    }
+                )
+                day += datetime.timedelta(days=1)
+        else:
+            rows.append(
+                {
+                    "begin": _ts(begin_dt),
+                    "title": title,
+                    "description": description,
+                    "end": _ts(end_dt),
+                    "all_day": is_all_day,
+                    "duration": end_dt - begin_dt,
+                    "tag": tag,
+                }
+            )
 
     if not rows:
         return _empty_df()

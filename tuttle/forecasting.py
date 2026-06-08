@@ -2,12 +2,14 @@
 
 import datetime
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 
 import pandas
 from pandas import DataFrame
 
-from .model import Contract, Invoice
+from .model import Contract, Invoice, Project
+from .time import TimeUnit
+from .timetracking import event_hours
 
 
 def monthly_revenue_from_contracts(
@@ -36,19 +38,18 @@ def monthly_revenue_from_contracts(
             if contract.is_completed:
                 continue
 
-            # Estimate workdays in this month (approx 22)
             workdays_in_month = 22
 
             if contract.volume and contract.start_date and contract.end_date:
-                # Distribute volume evenly across contract duration
                 total_days = (contract.end_date - contract.start_date).days or 1
                 contract_months = max(total_days / 30.0, 1.0)
-                units_per_month = contract.volume / contract_months
+                billable_units = contract.volume / contract_months
+            elif contract.unit == TimeUnit.day:
+                billable_units = workdays_in_month
             else:
-                # Assume full-time allocation: workdays × units_per_workday
-                units_per_month = workdays_in_month * contract.units_per_workday
+                billable_units = workdays_in_month * contract.units_per_workday
 
-            monthly_revenue = Decimal(str(units_per_month)) * contract.rate
+            monthly_revenue = Decimal(str(billable_units)) * contract.rate
             project_title = (
                 contract.projects[0].title if contract.projects else contract.title
             )
@@ -143,4 +144,163 @@ def revenue_curve(
     # Cumulative revenue
     combined["cumulative_revenue"] = combined["revenue"].cumsum()
 
+    return combined
+
+
+def monthly_revenue_from_calendar(
+    time_data: DataFrame,
+    projects: List[Project],
+    start_date: datetime.date,
+    end_date: datetime.date,
+) -> DataFrame:
+    """Forecast monthly revenue from future calendar events.
+
+    Filters *time_data* for events in [start_date, end_date], groups by month
+    and project tag, then converts hours to revenue via contract rates.
+
+    Returns a DataFrame with columns: month, project, revenue, contract_id, hours.
+    """
+    if time_data is None or time_data.empty:
+        return DataFrame(
+            columns=["month", "project", "revenue", "contract_id", "hours"]
+        )
+
+    tag_to_project = {p.tag: p for p in projects if p.tag and p.contract}
+
+    index_dates = time_data.index.date
+    mask = (index_dates >= start_date) & (index_dates <= end_date)
+    filtered = time_data[mask]
+    if filtered.empty:
+        return DataFrame(
+            columns=["month", "project", "revenue", "contract_id", "hours"]
+        )
+
+    records = []
+    df = filtered.copy()
+    df["_month"] = pandas.to_datetime(df.index).to_period("M").to_timestamp()
+    df["_hours"] = df.apply(
+        lambda row: event_hours(
+            row,
+            tag_to_project[row["tag"]].contract.units_per_workday
+            if row["tag"] in tag_to_project
+            else 8,
+        ),
+        axis=1,
+    )
+
+    grouped = df.groupby(["_month", "tag"]).agg(hours=("_hours", "sum")).reset_index()
+    for _, row in grouped.iterrows():
+        tag = row["tag"]
+        project = tag_to_project.get(tag)
+        if not project:
+            continue
+        contract = project.contract
+        unit_hours = contract.units_per_workday if contract.unit == TimeUnit.day else 1
+        billable_units = row["hours"] / unit_hours
+        revenue = float(Decimal(str(billable_units)) * contract.rate)
+        records.append(
+            {
+                "month": row["_month"],
+                "project": project.title,
+                "revenue": revenue,
+                "contract_id": contract.id,
+                "hours": round(row["hours"], 1),
+            }
+        )
+
+    if not records:
+        return DataFrame(
+            columns=["month", "project", "revenue", "contract_id", "hours"]
+        )
+    return DataFrame(records)
+
+
+def cash_flow_projection(
+    revenue_forecast: DataFrame,
+    contracts: List[Contract],
+) -> DataFrame:
+    """Shift a monthly revenue forecast forward by each contract's payment terms.
+
+    Takes the output of ``monthly_revenue_from_calendar`` or
+    ``monthly_revenue_from_contracts`` and produces expected cash inflows.
+
+    Returns a DataFrame with columns: month, expected_inflow, contract_id.
+    """
+    if revenue_forecast.empty:
+        return DataFrame(columns=["month", "expected_inflow", "contract_id"])
+
+    contract_map = {c.id: c for c in contracts if c.id is not None}
+    records = []
+    for _, row in revenue_forecast.iterrows():
+        cid = row.get("contract_id")
+        contract = contract_map.get(cid)
+        payment_delay = contract.term_of_payment if contract else 31
+        revenue_month = pandas.Timestamp(row["month"])
+        inflow_date = revenue_month + pandas.DateOffset(days=payment_delay)
+        inflow_month = inflow_date.to_period("M").to_timestamp()
+        records.append(
+            {
+                "month": inflow_month,
+                "expected_inflow": row["revenue"],
+                "contract_id": cid,
+            }
+        )
+
+    if not records:
+        return DataFrame(columns=["month", "expected_inflow", "contract_id"])
+
+    df = DataFrame(records)
+    return (
+        df.groupby("month")
+        .agg(
+            expected_inflow=("expected_inflow", "sum"),
+        )
+        .reset_index()
+        .sort_values("month")
+        .reset_index(drop=True)
+    )
+
+
+def revenue_curve_with_calendar(
+    invoices: List[Invoice],
+    contracts: List[Contract],
+    projects: List[Project],
+    time_data: Optional[DataFrame],
+    forecast_months: int = 6,
+) -> DataFrame:
+    """Revenue curve: past invoices + future calendar allocations.
+
+    Only calendar-planned time counts toward the forecast.
+    """
+    history = revenue_history(invoices)
+    if not history.empty:
+        history["is_forecast"] = False
+        history["source"] = "actual"
+    else:
+        history = DataFrame(columns=["month", "revenue", "is_forecast", "source"])
+
+    today = datetime.date.today()
+    forecast_start = today.replace(day=1)
+    forecast_end = (
+        forecast_start + datetime.timedelta(days=30 * forecast_months)
+    ).replace(day=1)
+
+    cal_monthly = DataFrame(columns=["month", "revenue", "is_forecast", "source"])
+    if time_data is not None and not time_data.empty:
+        cal_forecast = monthly_revenue_from_calendar(
+            time_data, projects, forecast_start, forecast_end
+        )
+        if not cal_forecast.empty:
+            cal_monthly = (
+                cal_forecast.groupby("month")
+                .agg(revenue=("revenue", "sum"))
+                .reset_index()
+            )
+            cal_monthly["is_forecast"] = True
+            cal_monthly["source"] = "calendar"
+
+    combined = pandas.concat([history, cal_monthly], ignore_index=True)
+    combined["month"] = pandas.to_datetime(combined["month"])
+    combined = combined.sort_values("month").reset_index(drop=True)
+    combined["cumulative_revenue"] = combined["revenue"].cumsum()
     return combined

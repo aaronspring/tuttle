@@ -7,6 +7,8 @@ import datetime
 from decimal import Decimal
 from typing import Any, Callable, Dict
 
+import pandas
+
 from tuttle.app_db import AppDatabase
 
 
@@ -19,7 +21,15 @@ def dump(obj: Any) -> Any:
     """
     if obj is None:
         return None
-    if isinstance(obj, (str, int, float, bool)):
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, float):
+        import math
+
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, (str, int)):
         return obj
     if isinstance(obj, Decimal):
         return float(obj)
@@ -31,6 +41,12 @@ def dump(obj: Any) -> Any:
         return {str(k): dump(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [dump(v) for v in obj]
+    if isinstance(obj, pandas.DataFrame):
+        return [dump(row) for row in obj.to_dict(orient="records")]
+    if isinstance(obj, pandas.Timestamp):
+        return obj.isoformat()
+    if isinstance(obj, pandas.Timedelta):
+        return obj.total_seconds()
     if hasattr(obj, "to_rpc_dict"):
         return dump(obj.to_rpc_dict())
     if hasattr(obj, "model_dump"):
@@ -43,6 +59,17 @@ def dump(obj: Any) -> Any:
         return dump(dataclasses.asdict(obj))
     if hasattr(obj, "value"):
         return dump(obj.value)
+    import numpy as np
+
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        v = float(obj)
+        import math
+
+        return None if math.isnan(v) or math.isinf(v) else v
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
     return str(obj)
 
 

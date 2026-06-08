@@ -11,21 +11,36 @@ from typing import Optional
 
 from pandas import DataFrame
 
+from ...timetracking import (
+    DEFAULT_WORKDAY_HOURS,
+    event_hours,
+    sum_hours_by_tag,
+    total_event_hours,
+)
 
-def df_to_records(df: DataFrame) -> list:
-    """Convert a time-tracking DataFrame to a list of JSON-safe dicts."""
+
+def df_to_records(df: DataFrame, tag_to_workday: Optional[dict] = None) -> list:
+    """Convert a time-tracking DataFrame to a list of JSON-safe dicts.
+
+    Each record includes ``is_future`` indicating whether the event is
+    in the future (planned allocation) vs the past (tracked time).
+    """
     if df is None or df.empty:
         return []
+    tag_to_workday = tag_to_workday or {}
+    today = datetime.date.today()
     records = []
     for idx, row in df.iterrows():
         begin = idx
+        event_date = begin.date() if hasattr(begin, "date") else None
         if hasattr(begin, "isoformat"):
             begin = begin.isoformat()
         end = row.get("end")
         if hasattr(end, "isoformat"):
             end = end.isoformat()
-        dur = row.get("duration")
-        dur_hours = dur.total_seconds() / 3600 if hasattr(dur, "total_seconds") else 0
+        tag = str(row.get("tag", ""))
+        workday = tag_to_workday.get(tag, DEFAULT_WORKDAY_HOURS)
+        dur_hours = event_hours(row, workday)
         records.append(
             {
                 "begin": str(begin),
@@ -36,6 +51,7 @@ def df_to_records(df: DataFrame) -> list:
                 "description": str(row.get("description", "") or ""),
                 "all_day": bool(row.get("all_day", False)),
                 "date": str(begin)[:10],
+                "is_future": event_date >= today if event_date else False,
             }
         )
     return records
@@ -47,6 +63,7 @@ def build_calendar_data(
     month: int,
     project_tag: Optional[str] = None,
     tag_to_title: Optional[dict] = None,
+    tag_to_workday: Optional[dict] = None,
 ) -> dict:
     """Build a month-view calendar payload from a time-tracking DataFrame.
 
@@ -54,6 +71,7 @@ def build_calendar_data(
     ``days`` (per-day aggregation), and ``summary`` (totals).
     """
     tag_to_title = tag_to_title or {}
+    tag_to_workday = tag_to_workday or {}
     start = datetime.date(year, month, 1)
     _, last_day = cal_mod.monthrange(year, month)
     end = datetime.date(year, month, last_day)
@@ -63,14 +81,11 @@ def build_calendar_data(
     if project_tag:
         month_df = month_df[month_df["tag"] == project_tag]
 
-    events = df_to_records(month_df)
+    events = df_to_records(month_df, tag_to_workday)
 
-    by_tag = (
-        month_df.groupby("tag")["duration"]
-        .sum()
-        .apply(lambda td: round(td.total_seconds() / 3600, 1))
-        .to_dict()
-    )
+    by_tag = {
+        t: round(h, 1) for t, h in sum_hours_by_tag(month_df, tag_to_workday).items()
+    }
     count_by_tag = month_df.groupby("tag").size().to_dict()
     projects = [
         {
@@ -105,10 +120,13 @@ def build_calendar_data(
         if tag and tag not in days[d]["tags"]:
             days[d]["tags"].append(tag)
 
-    total_hours = (
-        round(month_df["duration"].sum().total_seconds() / 3600, 1)
-        if len(month_df)
-        else 0
+    total_hours = total_event_hours(month_df, tag_to_workday) if len(month_df) else 0
+
+    today = datetime.date.today()
+    future_mask = month_df.index.date >= today
+    future_df = month_df[future_mask]
+    planned_hours = (
+        total_event_hours(future_df, tag_to_workday) if len(future_df) else 0
     )
 
     return {
@@ -122,12 +140,17 @@ def build_calendar_data(
         "summary": {
             "total_events": len(month_df),
             "total_hours": total_hours,
+            "planned_hours": planned_hours,
+            "planned_events": int(future_mask.sum()),
         },
     }
 
 
 def build_summary(
-    df: DataFrame, tag_to_title: dict, project_tag: Optional[str] = None
+    df: DataFrame,
+    tag_to_title: dict,
+    project_tag: Optional[str] = None,
+    tag_to_workday: Optional[dict] = None,
 ) -> dict:
     """Build a time-tracking summary: totals and per-project breakdown.
 
@@ -143,13 +166,9 @@ def build_summary(
         if df.empty:
             return {"total_events": 0, "total_hours": 0, "projects": []}
 
-    total_hours = df["duration"].sum().total_seconds() / 3600
-    by_tag = (
-        df.groupby("tag")["duration"]
-        .sum()
-        .apply(lambda td: round(td.total_seconds() / 3600, 1))
-        .to_dict()
-    )
+    tag_to_workday = tag_to_workday or {}
+    total_hours = total_event_hours(df, tag_to_workday)
+    by_tag = {t: round(h, 1) for t, h in sum_hours_by_tag(df, tag_to_workday).items()}
     project_summaries = []
     for tag, hours in sorted(by_tag.items(), key=lambda x: -x[1]):
         project_summaries.append(
