@@ -31,9 +31,14 @@
         "to": "tuttle-rpc"
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "tuttle-dev",
+      "repo": "tuttle"
+    },
     "mac": {
       "category": "public.app-category.business",
-      "target": ["dmg", "dir"],
+      "target": ["zip", "dmg", "dir"],
       "extendInfo": {
         "NSCalendarsFullAccessUsageDescription": "Tuttle needs access to your calendars to import events for time tracking."
       }
@@ -47,6 +52,7 @@
     }
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

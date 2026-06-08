@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PythonBridge } from "./python-bridge";
+import { autoUpdater, initUpdater } from "./updater";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,6 +83,14 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+
+  if (!process.env.VITE_DEV_SERVER_URL && mainWindow) {
+    initUpdater(mainWindow);
+  }
+
+  ipcMain.on("quit-and-install", () => {
+    autoUpdater.quitAndInstall();
+  });
 });
 
 app.on("window-all-closed", () => {

@@ -14,6 +14,7 @@ import { SalaryView } from "../salary/SalaryView";
 import { TimeTrackingView } from "../timetracking/TimeTrackingView";
 import { ContractImportView } from "../import/ContractImportView";
 import { PlaceholderView } from "../shared/PlaceholderView";
+import { UpdateBanner } from "./UpdateBanner";
 import { NavigationContext, type NavigationFilter } from "../shared/NavigationContext";
 import { rpc } from "../../api/rpc";
 
@@ -197,6 +198,7 @@ export function Shell() {
         />
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="drag-region h-13 shrink-0" />
+          <UpdateBanner />
           <div className="flex-1 overflow-y-auto">
             <DetailView id={selected} />
           </div>
