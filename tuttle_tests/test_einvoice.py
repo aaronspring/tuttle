@@ -212,6 +212,18 @@ class TestBuildZugferdDocument:
         )
         assert len(xml_bytes) > 0
 
+    def test_zero_vat_schema_validation_passes(self):
+        """0% VAT must not produce xs:decimal-invalid scientific notation (e.g. 0E-10)."""
+        user = _make_user()
+        invoice = _make_invoice()
+        for item in invoice.items:
+            item.VAT_rate = Decimal("0E-10")  # simulate what the DB can return
+        xml_bytes = serialize_zugferd_xml(
+            invoice, user, profile="EN16931", validate=True
+        )
+        assert len(xml_bytes) > 0
+        assert b"0E-10" not in xml_bytes
+
     def test_embed_in_pdf(self, tmp_path):
         """Full round-trip: generate a PDF, embed ZUGFeRD XML, verify output."""
         from pypdf import PdfWriter
