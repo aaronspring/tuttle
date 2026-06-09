@@ -363,6 +363,7 @@ def project_budget_status(
                 "hours_budget": float(hours_budget),
                 "hours_remaining": hours_remaining,
                 "planned_revenue": round(planned_revenue, 2),
+                "currency": str(contract.currency) if contract.currency else "EUR",
                 "progress": min(progress, 1.0),
                 "budget_exceeded": budget_exceeded,
             }

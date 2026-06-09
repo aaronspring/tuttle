@@ -21,6 +21,7 @@ interface BudgetEntry {
   hours_budget: number;
   hours_remaining: number;
   planned_revenue: number;
+  currency: string;
   progress: number;
   budget_exceeded: boolean;
 }
@@ -319,7 +320,7 @@ export function ProjectsView() {
                           <span className="text-blue-400 font-medium">{b.hours_planned.toFixed(1)}h planned</span>
                           {b.planned_revenue > 0 && (
                             <span className="ml-2 text-tertiary">
-                              ≈ {b.planned_revenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} revenue
+                              ≈ {b.planned_revenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} {b.currency} revenue
                             </span>
                           )}
                         </div>
