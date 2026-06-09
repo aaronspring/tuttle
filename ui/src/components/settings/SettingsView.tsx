@@ -718,7 +718,7 @@ export function SettingsView() {
             </div>
           </div>
 
-          {config.provider === "openai" && (
+          {config.provider !== "ollama" && (
             <div>
               <label className={labelCls}>API Key</label>
               <input
@@ -728,6 +728,9 @@ export function SettingsView() {
                 placeholder="sk-…"
                 className={inputCls}
               />
+              <p className="mt-1 text-xs text-muted">
+                Required for most OpenAI-compatible providers. Leave blank if the endpoint needs no authentication.
+              </p>
             </div>
           )}
 
