@@ -34,7 +34,8 @@
     "publish": {
       "provider": "github",
       "owner": "tuttle-dev",
-      "repo": "tuttle"
+      "repo": "tuttle",
+      "releaseType": "release"
     },
     "mac": {
       "category": "public.app-category.business",
