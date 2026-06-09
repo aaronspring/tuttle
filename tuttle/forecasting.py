@@ -153,10 +153,12 @@ def monthly_revenue_from_calendar(
     start_date: datetime.date,
     end_date: datetime.date,
 ) -> DataFrame:
-    """Forecast monthly revenue from future calendar events.
+    """Derive monthly revenue from calendar time-tracking events.
 
-    Filters *time_data* for events in [start_date, end_date], groups by month
-    and project tag, then converts hours to revenue via contract rates.
+    The calendar DataFrame is the source of truth for hours worked (past)
+    and hours planned (future).  Filters *time_data* for events in
+    [start_date, end_date], groups by month and project tag, then converts
+    hours to revenue via contract rates.
 
     Returns a DataFrame with columns: month, project, revenue, contract_id, hours.
     """
@@ -268,9 +270,13 @@ def revenue_curve_with_calendar(
     time_data: Optional[DataFrame],
     forecast_months: int = 6,
 ) -> DataFrame:
-    """Revenue curve: past invoices + future calendar allocations.
+    """Revenue curve combining invoice history with calendar-derived revenue.
 
-    Only calendar-planned time counts toward the forecast.
+    The calendar DataFrame is the source of truth for hours worked and
+    planned.  Calendar-derived revenue covers the full date range of
+    *time_data* (both past and future), so months without invoices still
+    show revenue from tracked work.  Invoice-based rows are labelled
+    ``source="actual"``; calendar-based rows ``source="calendar"``.
     """
     history = revenue_history(invoices)
     if not history.empty:
@@ -280,23 +286,25 @@ def revenue_curve_with_calendar(
         history = DataFrame(columns=["month", "revenue", "is_forecast", "source"])
 
     today = datetime.date.today()
-    forecast_start = today.replace(day=1)
     forecast_end = (
-        forecast_start + datetime.timedelta(days=30 * forecast_months)
+        today.replace(day=1) + datetime.timedelta(days=30 * forecast_months)
     ).replace(day=1)
 
     cal_monthly = DataFrame(columns=["month", "revenue", "is_forecast", "source"])
     if time_data is not None and not time_data.empty:
-        cal_forecast = monthly_revenue_from_calendar(
-            time_data, projects, forecast_start, forecast_end
+        cal_start = time_data.index.min().date().replace(day=1)
+        cal_revenue = monthly_revenue_from_calendar(
+            time_data, projects, cal_start, forecast_end
         )
-        if not cal_forecast.empty:
+        if not cal_revenue.empty:
             cal_monthly = (
-                cal_forecast.groupby("month")
+                cal_revenue.groupby("month")
                 .agg(revenue=("revenue", "sum"))
                 .reset_index()
             )
-            cal_monthly["is_forecast"] = True
+            cal_monthly["is_forecast"] = cal_monthly["month"] >= pandas.Timestamp(
+                today.replace(day=1)
+            )
             cal_monthly["source"] = "calendar"
 
     combined = pandas.concat([history, cal_monthly], ignore_index=True)

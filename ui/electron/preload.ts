@@ -8,5 +8,10 @@ contextBridge.exposeInMainWorld("tuttle", {
   onUpdateDownloaded: (cb: (info: { version: string }) => void) => {
     ipcRenderer.on("update-downloaded", (_e, info) => cb(info));
   },
+  onUpdateError: (cb: (info: { message: string }) => void) => {
+    ipcRenderer.on("update-error", (_e, info) => cb(info));
+  },
+  checkForUpdate: () => ipcRenderer.send("check-for-update"),
+  openExternal: (url: string) => ipcRenderer.send("open-external", url),
   quitAndInstall: () => ipcRenderer.send("quit-and-install"),
 });

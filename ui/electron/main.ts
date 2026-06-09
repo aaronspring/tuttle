@@ -88,6 +88,16 @@ app.whenReady().then(async () => {
     initUpdater(mainWindow);
   }
 
+  ipcMain.on("check-for-update", () => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  });
+
+  ipcMain.on("open-external", (_event, url: string) => {
+    if (typeof url === "string" && /^https?:\/\//.test(url)) {
+      shell.openExternal(url);
+    }
+  });
+
   ipcMain.on("quit-and-install", () => {
     autoUpdater.quitAndInstall();
   });

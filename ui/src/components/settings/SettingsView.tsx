@@ -9,10 +9,11 @@
  */
 
 import { useEffect, useState } from "react";
-import { Settings, RefreshCw, Save, CheckCircle2, AlertCircle, User, Bot, FileText, RotateCcw, Trash2, AlertTriangle } from "lucide-react";
+import { Settings, RefreshCw, Save, CheckCircle2, AlertCircle, User, Bot, FileText, RotateCcw, Trash2, AlertTriangle, Monitor, Info } from "lucide-react";
 import { rpc } from "../../api/rpc";
 import type { Entity } from "../../api/types";
 import { str } from "../../api/entity";
+import { useStatusBar, type StatusMessage, type MessageType } from "../shared/status-bar-context";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,12 +80,13 @@ const SCHEME_EXAMPLES: Record<string, string> = {
   plain: "01",
 };
 
-type Tab = "profile" | "invoicing" | "llm";
+type Tab = "profile" | "invoicing" | "llm" | "system";
 
 const TABS: { id: Tab; label: string; icon: typeof User }[] = [
   { id: "profile", label: "Profile", icon: User },
   { id: "invoicing", label: "Invoicing", icon: FileText },
   { id: "llm", label: "AI / LLM", icon: Bot },
+  { id: "system", label: "System", icon: Monitor },
 ];
 
 // ---------------------------------------------------------------------------
@@ -666,6 +668,10 @@ export function SettingsView() {
         </section>
       )}
 
+      {tab === "system" && (
+        <SystemTab />
+      )}
+
       {tab === "llm" && (
         <section className="space-y-4">
           <div>
@@ -784,5 +790,79 @@ export function SettingsView() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// System tab
+// ---------------------------------------------------------------------------
+
+const LOG_TYPE_STYLES: Record<MessageType, string> = {
+  info: "text-blue-400",
+  error: "text-red-400",
+  success: "text-green-400",
+};
+
+const LOG_TYPE_ICONS: Record<MessageType, typeof Info> = {
+  info: Info,
+  error: AlertCircle,
+  success: CheckCircle2,
+};
+
+function SystemTab() {
+  const { log } = useStatusBar();
+  const [checking, setChecking] = useState(false);
+
+  function handleCheckForUpdate() {
+    setChecking(true);
+    window.tuttle.checkForUpdate();
+    setTimeout(() => setChecking(false), 3000);
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold">About Tuttle</h3>
+        <p className="text-sm text-secondary">Version {__APP_VERSION__}</p>
+        <p className="text-xs text-muted">Platform: {window.tuttle.platform}</p>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Updates</h3>
+        <button
+          onClick={handleCheckForUpdate}
+          disabled={checking}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-accent/10 text-primary hover:bg-accent/20 border border-accent/30 transition-colors disabled:opacity-40"
+        >
+          <RefreshCw size={14} className={checking ? "animate-spin" : ""} />
+          {checking ? "Checking…" : "Check for updates"}
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Message Log</h3>
+        {log.length === 0 ? (
+          <p className="text-xs text-muted">No messages yet.</p>
+        ) : (
+          <div className="border border-border-subtle rounded-md overflow-hidden max-h-64 overflow-y-auto">
+            {log.map((msg) => {
+              const Icon = LOG_TYPE_ICONS[msg.type];
+              return (
+                <div
+                  key={msg.id}
+                  className="flex items-start gap-2 px-3 py-2 text-xs border-b border-border-subtle last:border-b-0"
+                >
+                  <Icon size={13} className={`shrink-0 mt-0.5 ${LOG_TYPE_STYLES[msg.type]}`} />
+                  <span className="text-secondary flex-1">{msg.text}</span>
+                  <time className="text-muted shrink-0">
+                    {msg.timestamp.toLocaleTimeString()}
+                  </time>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

@@ -38,13 +38,16 @@ class DashboardIntent(SQLModelDataSourceMixin, Intent):
         return "Germany"
 
     def get_kpis(self) -> IntentResult:
-        """Compute KPI summary from all invoices, contracts, projects."""
+        """Compute KPI summary from invoices, contracts, and calendar data."""
         try:
             invoices = self.query(Invoice)
             contracts = self.query(Contract)
             projects = self.query(Project)
             country = self._get_country()
-            kpis = compute_kpis(invoices, contracts, projects, country=country)
+            time_data = self._time_data_source.get_data_frame()
+            kpis = compute_kpis(
+                invoices, contracts, projects, country=country, time_data=time_data
+            )
             return IntentResult(was_intent_successful=True, data=kpis)
         except Exception as e:
             return IntentResult(
@@ -159,7 +162,7 @@ class DashboardIntent(SQLModelDataSourceMixin, Intent):
             )
 
     def get_project_budgets(self) -> IntentResult:
-        """Get budget utilization for all projects, including planned hours."""
+        """Budget utilization for all projects from calendar time-tracking data."""
         try:
             projects = self.query(Project)
             time_data = self._time_data_source.get_data_frame()
@@ -179,8 +182,13 @@ class DashboardIntent(SQLModelDataSourceMixin, Intent):
             goals = self.query(FinancialGoal)
             invoices = self.query(Invoice)
             country = self._get_country()
+            time_data = self._time_data_source.get_data_frame()
             kpis = compute_kpis(
-                invoices, self.query(Contract), self.query(Project), country=country
+                invoices,
+                self.query(Contract),
+                self.query(Project),
+                country=country,
+                time_data=time_data,
             )
             ytd_revenue = float(kpis.total_revenue_ytd)
 

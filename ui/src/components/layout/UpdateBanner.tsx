@@ -1,12 +1,17 @@
 import { useState, useEffect } from "react";
 import { Download, X } from "lucide-react";
+import { useStatusBar } from "../shared/status-bar-context";
 
 export function UpdateBanner() {
   const [update, setUpdate] = useState<{ version: string } | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const { showMessage } = useStatusBar();
 
   useEffect(() => {
     window.tuttle?.onUpdateDownloaded?.((info) => setUpdate(info));
+    window.tuttle?.onUpdateError?.((info) => {
+      showMessage(`Update check failed: ${info.message}`, { type: "error" });
+    });
   }, []);
 
   if (!update || dismissed) return null;

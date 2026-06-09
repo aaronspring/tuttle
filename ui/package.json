@@ -1,7 +1,7 @@
 {
   "name": "tuttle-ui",
   "productName": "Tuttle",
-  "version": "3.7.1",
+  "version": "3.7.2",
   "description": "Cross-platform Electron UI for Tuttle",
   "private": true,
   "type": "module",
@@ -39,7 +39,11 @@
     },
     "mac": {
       "category": "public.app-category.business",
-      "target": ["zip", "dmg", "dir"],
+      "target": [
+        "zip",
+        "dmg",
+        "dir"
+      ],
       "extendInfo": {
         "NSCalendarsFullAccessUsageDescription": "Tuttle needs access to your calendars to import events for time tracking."
       }
@@ -58,6 +62,9 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^2.15.3"
+  },
+  "allowScripts": {
+    "electron": true
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",

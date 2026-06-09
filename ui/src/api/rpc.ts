@@ -5,6 +5,9 @@ declare global {
       readFile: (filePath: string) => Promise<{ ok: boolean; data: string | null }>;
       platform: string;
       onUpdateDownloaded: (cb: (info: { version: string }) => void) => void;
+      onUpdateError: (cb: (info: { message: string }) => void) => void;
+      checkForUpdate: () => void;
+      openExternal: (url: string) => void;
       quitAndInstall: () => void;
     };
   }

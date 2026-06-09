@@ -61,19 +61,24 @@ def compute_kpis(
     contracts: List[Contract],
     projects: List[Project],
     country: str = "Germany",
+    time_data: Optional[DataFrame] = None,
 ) -> KPISummary:
-    """Compute business KPIs from current data."""
+    """Compute business KPIs from invoices, contracts, and calendar data.
+
+    *time_data* (the calendar DataFrame) is the source of truth for hours
+    worked.  It drives ``effective_hourly_rate`` and ``utilization_rate``.
+    Revenue metrics come from invoices.
+    """
     today = datetime.date.today()
     year_start = today.replace(month=1, day=1)
 
-    # Revenue metrics
+    # Revenue metrics (from invoices)
     total_revenue = Decimal(0)
     total_revenue_ytd = Decimal(0)
     outstanding_amount = Decimal(0)
     overdue_amount = Decimal(0)
     unpaid_invoices = 0
     overdue_invoices = 0
-    total_hours = Decimal(0)
     paid_revenue = Decimal(0)
 
     for inv in invoices:
@@ -85,11 +90,6 @@ def compute_kpis(
             total_revenue += inv_total
             if inv.date >= year_start:
                 total_revenue_ytd += inv_total
-            # Accumulate hours for effective rate calculation
-            for ts in inv.timesheets:
-                for item in ts.items:
-                    hours = item.duration.total_seconds() / 3600
-                    total_hours += Decimal(str(hours))
             paid_revenue += inv_total
         else:
             outstanding_amount += inv_total
@@ -97,6 +97,19 @@ def compute_kpis(
             if inv.due_date and inv.due_date < today:
                 overdue_amount += inv_total
                 overdue_invoices += 1
+
+    # Total tracked hours from calendar data
+    total_hours = Decimal(0)
+    if time_data is not None and not time_data.empty:
+        past = time_data[time_data.index.date < today]
+        if not past.empty:
+            tag_to_workday = {
+                p.tag: p.contract.units_per_workday
+                for p in projects
+                if p.tag and p.contract
+            }
+            tracked = sum(sum_hours_by_tag(past, tag_to_workday).values())
+            total_hours = Decimal(str(tracked))
 
     # Effective hourly rate: paid revenue / total tracked hours
     effective_hourly_rate = None
@@ -110,10 +123,8 @@ def compute_kpis(
     # Utilization rate: tracked hours / available hours (based on workdays)
     utilization_rate = None
     if active_contracts:
-        # Available hours since year start
         days_elapsed = (today - year_start).days or 1
         workdays_elapsed = int(days_elapsed * 5 / 7)
-        # Sum contracted hours per workday across active contracts
         available_hours_per_day = sum(
             c.units_per_workday for c in contracts if c.is_active()
         )
@@ -300,10 +311,11 @@ def project_budget_status(
     projects: List[Project],
     time_data: Optional[DataFrame] = None,
 ) -> list:
-    """Budget utilization for each project, including planned (future) hours.
+    """Budget utilization per project derived from calendar time-tracking data.
 
-    When *time_data* (the full calendar DataFrame) is provided, future events
-    are counted as ``hours_planned``.
+    *time_data* (the calendar DataFrame) is the source of truth for hours.
+    Past events (before today) become ``hours_tracked``; future events
+    (today onward) become ``hours_planned``.
 
     Returns a list of dicts with keys: project_id, project, hours_tracked,
     hours_planned, hours_budget, hours_remaining, planned_revenue, progress,
@@ -311,16 +323,20 @@ def project_budget_status(
     tracked or planned time.
     """
     today = datetime.date.today()
+    tracked_by_tag: dict = {}
     planned_by_tag: dict = {}
 
     if time_data is not None and not time_data.empty:
+        tag_to_workday = {
+            p.tag: p.contract.units_per_workday
+            for p in projects
+            if p.tag and p.contract
+        }
+        past = time_data[time_data.index.date < today]
+        if not past.empty:
+            tracked_by_tag = sum_hours_by_tag(past, tag_to_workday)
         future = time_data[time_data.index.date >= today]
         if not future.empty:
-            tag_to_workday = {
-                p.tag: p.contract.units_per_workday
-                for p in projects
-                if p.tag and p.contract
-            }
             planned_by_tag = sum_hours_by_tag(future, tag_to_workday)
 
     results = []
@@ -328,11 +344,7 @@ def project_budget_status(
         if not project.contract or not project.contract.volume:
             continue
 
-        hours_tracked = Decimal(0)
-        for ts in project.timesheets:
-            for item in ts.items:
-                hours_tracked += Decimal(str(item.duration.total_seconds() / 3600))
-
+        hours_tracked = Decimal(str(tracked_by_tag.get(project.tag, 0)))
         hours_planned = Decimal(str(planned_by_tag.get(project.tag, 0)))
 
         if hours_tracked == 0 and hours_planned == 0:
@@ -363,6 +375,7 @@ def project_budget_status(
                 "hours_budget": float(hours_budget),
                 "hours_remaining": hours_remaining,
                 "planned_revenue": round(planned_revenue, 2),
+                "currency": str(contract.currency) if contract.currency else "EUR",
                 "progress": min(progress, 1.0),
                 "budget_exceeded": budget_exceeded,
             }

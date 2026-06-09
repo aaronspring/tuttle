@@ -138,7 +138,12 @@ export function TimeTrackingView() {
     for (const file of Array.from(files)) {
       if (!file.name.endsWith(".ics")) continue;
       const buffer = await file.arrayBuffer();
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      }
+      const b64 = btoa(binary);
       await rpc("timetracking.import_ics", { content: b64, name: file.name });
     }
     setImporting(false);

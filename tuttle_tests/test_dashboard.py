@@ -4,6 +4,7 @@ import datetime
 from decimal import Decimal
 
 import pytest
+import pandas
 
 from tuttle.model import (
     Address,
@@ -452,20 +453,64 @@ class TestMonthlySpendableBreakdown:
         assert keys == sorted(keys)
 
 
+@pytest.fixture
+def time_data_df(project):
+    """Calendar DataFrame with past and future events tagged for the test project."""
+    today = datetime.date.today()
+    records = []
+    # 5 past events (8h each)
+    for i in range(1, 6):
+        d = today - datetime.timedelta(days=i)
+        records.append(
+            {
+                "begin": datetime.datetime(d.year, d.month, d.day, 9, 0),
+                "end": datetime.datetime(d.year, d.month, d.day, 17, 0),
+                "duration": datetime.timedelta(hours=8),
+                "title": f"Past work {i}",
+                "tag": "#TestProject",
+                "description": "",
+                "all_day": False,
+            }
+        )
+    # 2 future events (8h each)
+    for i in range(1, 3):
+        d = today + datetime.timedelta(days=i)
+        records.append(
+            {
+                "begin": datetime.datetime(d.year, d.month, d.day, 9, 0),
+                "end": datetime.datetime(d.year, d.month, d.day, 17, 0),
+                "duration": datetime.timedelta(hours=8),
+                "title": f"Future work {i}",
+                "tag": "#TestProject",
+                "description": "",
+                "all_day": False,
+            }
+        )
+    df = pandas.DataFrame(records).set_index("begin")
+    return df
+
+
 class TestProjectBudgetStatus:
     def test_project_without_volume(self, project):
         project.contract.volume = None
         result = project_budget_status([project])
         assert result == []
 
-    def test_project_with_volume_and_timesheets(self, project, timesheet_with_items):
+    def test_tracked_from_calendar_data(self, project, time_data_df):
+        """Past calendar events are the source of truth for hours_tracked."""
         project.contract.volume = 100
-        project.timesheets = [timesheet_with_items]
-        result = project_budget_status([project])
+        result = project_budget_status([project], time_data=time_data_df)
         assert len(result) == 1
         assert result[0]["project"] == "Test Project"
-        assert result[0]["hours_tracked"] > 0
+        assert result[0]["hours_tracked"] == 40.0  # 5 × 8h
+        assert result[0]["hours_planned"] == 16.0  # 2 × 8h
         assert 0 <= result[0]["progress"] <= 1.0
+
+    def test_no_time_data_yields_empty(self, project):
+        """Without calendar data no budget rows are produced."""
+        project.contract.volume = 100
+        result = project_budget_status([project], time_data=None)
+        assert result == []
 
     def test_empty_projects(self):
         result = project_budget_status([])
