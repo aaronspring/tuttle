@@ -59,6 +59,9 @@
     "react-dom": "^19.1.0",
     "recharts": "^2.15.3"
   },
+  "allowScripts": {
+    "electron": true
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",
     "@types/react": "^19.1.3",
