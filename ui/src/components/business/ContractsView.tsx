@@ -256,7 +256,7 @@ function ContractRow({ contract, isSelected, onSelect }: {
       <div className="flex items-center gap-2 text-xs text-tertiary mt-0.5">
         {clientName && <span>{clientName}</span>}
         {clientName && rate > 0 && <span>·</span>}
-        {rate > 0 && <span>{rate} {currency}/h</span>}
+        {rate > 0 && <span>{rate} {currency}/{str(contract, "unit_abbrev") || "h"}</span>}
       </div>
     </button>
   );

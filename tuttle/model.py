@@ -425,6 +425,7 @@ class Contract(RpcMixin, SQLModel, table=True):
         "projects": ("id", "title"),
         "invoices": ("id",),
     }
+    __rpc_computed__ = ("unit_abbrev",)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(
@@ -490,6 +491,11 @@ class Contract(RpcMixin, SQLModel, table=True):
         back_populates="contract",
         sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
+
+    @property
+    def unit_abbrev(self) -> str:
+        """Short display label for the billing unit, e.g. 'h' or 'd'."""
+        return self.unit.abbrev
 
     @property
     def volume_as_time(self):

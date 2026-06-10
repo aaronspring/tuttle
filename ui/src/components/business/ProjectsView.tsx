@@ -308,7 +308,7 @@ export function ProjectsView() {
                   <DetailRow label="Dates" value={dateRange(selected)} />
                   <DetailRow label="Client" value={selectedClient ? str(selectedClient, "name") : "—"} />
                   <DetailRow label="Contract" value={selectedContract ? str(selectedContract, "title") : "—"} />
-                  <DetailRow label="Rate" value={selectedContract ? `${str(selectedContract, "rate")} ${str(selectedContract, "currency")}/${str(selectedContract, "unit")}` : "—"} />
+                  <DetailRow label="Rate" value={selectedContract ? `${str(selectedContract, "rate")} ${str(selectedContract, "currency")}/${str(selectedContract, "unit_abbrev") || "h"}` : "—"} />
                 </div>
                 {selected.id != null && budgetsMap[selected.id as number] && (() => {
                   const b = budgetsMap[selected.id as number];

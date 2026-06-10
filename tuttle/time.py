@@ -14,8 +14,6 @@ class Cycle(enum.Enum):
     def __str__(self):
         return str(self.value)
 
-  
-
 
 class TimeUnit(enum.Enum):
     # minute = "minute"
@@ -28,7 +26,11 @@ class TimeUnit(enum.Enum):
         elif self == TimeUnit.day:
             return datetime.timedelta(days=1)
 
+    @property
+    def abbrev(self) -> str:
+        """Short display label, e.g. 'h' or 'd'."""
+        _abbrevs = {TimeUnit.hour: "h", TimeUnit.day: "d"}
+        return _abbrevs.get(self, self.value)
+
     def __str__(self):
         return str(self.value)
-
- 
