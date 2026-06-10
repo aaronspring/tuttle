@@ -172,9 +172,33 @@ export function ContractImportView() {
     setImportSteps([]); setParseError(null);
   }
 
+  function validateEntities(): string[] {
+    const errors: string[] = [];
+    for (const item of accepted(contracts)) {
+      const d = item.data;
+      const missing: string[] = [];
+      if (!d.title?.trim()) missing.push("Title");
+      if (d.rate == null || String(d.rate).trim() === "") missing.push("Rate");
+      if (!d.currency?.trim()) missing.push("Currency");
+      if (!d.start_date?.trim()) missing.push("Start Date");
+      if (missing.length > 0) {
+        const label = d.title?.trim() || "Untitled contract";
+        errors.push(`Contract "${label}": missing ${missing.join(", ")}`);
+      }
+    }
+    return errors;
+  }
+
   async function handleCommit() {
-    setCommitting(true);
     setCommitError(null);
+
+    const validationErrors = validateEntities();
+    if (validationErrors.length > 0) {
+      setCommitError("Required fields are missing:\n" + validationErrors.join("\n"));
+      return;
+    }
+
+    setCommitting(true);
 
     const payload = {
       contacts: accepted(contacts).map((e) => commitShape(e)),
@@ -234,7 +258,7 @@ export function ContractImportView() {
             </div>
 
             {commitError && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400 whitespace-pre-line">
                 {commitError}
               </div>
             )}
@@ -728,16 +752,16 @@ function ContractCard({ item, onUpdate, existing, clients }: {
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-3 gap-2">
-        <AiField label="Title" value={d.title} dbValue={ex?.title as string} onChange={(v) => set("title", v)} />
-        <AiField label="Rate" value={String(d.rate ?? "")} onChange={(v) => set("rate", v ? parseFloat(v) : null)} />
-        <AiField label="Currency" value={d.currency} onChange={(v) => set("currency", v)} />
+        <AiField label="Title" value={d.title} dbValue={ex?.title as string} onChange={(v) => set("title", v)} required />
+        <AiField label="Rate" value={String(d.rate ?? "")} onChange={(v) => set("rate", v ? parseFloat(v) : null)} required />
+        <AiField label="Currency" value={d.currency} onChange={(v) => set("currency", v)} required />
         <AiField label="Unit" value={d.unit} onChange={(v) => set("unit", v)} />
         <AiField label="Billing Cycle" value={d.billing_cycle} onChange={(v) => set("billing_cycle", v)} />
         <AiField label="Volume" value={String(d.volume ?? "")} onChange={(v) => set("volume", v ? parseInt(v) : null)} />
       </div>
       <div className="grid grid-cols-3 gap-2">
         <AiField label="Signature Date" value={d.signature_date} onChange={(v) => set("signature_date", v)} type="date" />
-        <AiField label="Start Date" value={d.start_date} onChange={(v) => set("start_date", v)} type="date" />
+        <AiField label="Start Date" value={d.start_date} onChange={(v) => set("start_date", v)} type="date" required />
         <AiField label="End Date" value={d.end_date} onChange={(v) => set("end_date", v)} type="date" />
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -812,22 +836,29 @@ function ProjectCard({ item, onUpdate, existing, importedContracts }: {
 // Shared UI primitives
 // ---------------------------------------------------------------------------
 
-function AiField({ label, value, dbValue, onChange, type = "text" }: {
+function AiField({ label, value, dbValue, onChange, type = "text", required }: {
   label: string; value: string | null | undefined; dbValue?: string;
-  onChange: (v: string) => void; type?: string;
+  onChange: (v: string) => void; type?: string; required?: boolean;
 }) {
   const safeValue = value ?? "";
   const differs = dbValue != null && dbValue !== "" && safeValue !== dbValue;
+  const missing = required && !safeValue.trim();
 
   return (
     <div>
-      <label className="block text-xs text-fuchsia-300/70 mb-0.5">{label}</label>
+      <label className={`block text-xs mb-0.5 ${missing ? "text-red-400" : "text-fuchsia-300/70"}`}>
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
       <input type={type} value={safeValue} onChange={(e) => onChange(e.target.value)}
         className={`w-full px-2.5 py-1.5 rounded-md text-sm bg-bg-card text-primary outline-none
           focus:border-fuchsia-400 transition-colors placeholder:text-muted border ${
+          missing ? "border-red-400/70 bg-red-500/5" :
           differs ? "border-amber-400/60" : "border-fuchsia-400/30"
         }`} />
-      {differs && (
+      {missing && (
+        <div className="text-[10px] text-red-400 mt-0.5">Required</div>
+      )}
+      {!missing && differs && (
         <div className="text-[10px] text-amber-400/80 mt-0.5 truncate" title={`DB: ${dbValue}`}>
           DB: {dbValue}
         </div>

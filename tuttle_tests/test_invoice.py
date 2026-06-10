@@ -3,16 +3,19 @@
 import datetime
 from decimal import Decimal
 
+import faker
 import pandas
 import pytest
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from tuttle import invoicing, timetracking
+from tuttle import demo, invoicing, rendering, timetracking
 from tuttle.model import (
     Address,
     Client,
     Contract,
     Invoice,
     InvoiceItem,
+    InvoiceNote,
     Project,
 )
 from tuttle.time import Cycle, TimeUnit
@@ -208,3 +211,178 @@ def test_generate_invoice_respects_day_unit():
     assert item.quantity == pytest.approx(1.0)
     assert item.unit == "day"
     assert invoice.sum == Decimal("500")
+
+
+# ---------------------------------------------------------------------------
+# Invoice notes
+# ---------------------------------------------------------------------------
+
+
+class TestInvoiceNoteModel:
+    """InvoiceNote can be stored and retrieved."""
+
+    def test_store_and_retrieve(self):
+        engine = create_engine("sqlite:///")
+        SQLModel.metadata.create_all(engine)
+        note = InvoiceNote(text="Thank you for your prompt payment.")
+        with Session(engine) as session:
+            session.add(note)
+            session.commit()
+            session.refresh(note)
+            assert note.id is not None
+            assert note.created_at is not None
+        with Session(engine) as session:
+            retrieved = session.exec(select(InvoiceNote)).first()
+            assert retrieved.text == "Thank you for your prompt payment."
+
+    def test_created_at_defaults_to_now(self):
+        before = datetime.datetime.now()
+        note = InvoiceNote(text="test")
+        after = datetime.datetime.now()
+        assert before <= note.created_at <= after
+
+
+class TestInvoiceNotesField:
+    """Invoice.notes optional field."""
+
+    def test_defaults_to_none(self):
+        inv = Invoice(
+            number="N-001",
+            date=datetime.date.today(),
+        )
+        assert inv.notes is None
+
+    def test_custom_notes_roundtrip(self):
+        engine = create_engine("sqlite:///")
+        SQLModel.metadata.create_all(engine)
+        inv = Invoice(
+            number="N-002",
+            date=datetime.date.today(),
+            notes="We appreciate your continued partnership.",
+        )
+        with Session(engine) as session:
+            session.add(inv)
+            session.commit()
+            session.refresh(inv)
+        with Session(engine) as session:
+            loaded = session.exec(select(Invoice)).first()
+            assert loaded.notes == "We appreciate your continued partnership."
+
+
+@pytest.fixture()
+def notes_intent(tmp_path, monkeypatch):
+    """Provide an InvoiceNotesIntent wired to a throwaway SQLite DB."""
+    import tuttle.app.core.abstractions as _abs
+    from tuttle.app.invoice_notes.intent import InvoiceNotesIntent
+
+    db_path = tmp_path / "test.db"
+    monkeypatch.setattr(_abs, "_active_db_path", db_path)
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    SQLModel.metadata.create_all(engine)
+
+    return InvoiceNotesIntent()
+
+
+class TestInvoiceNotesIntent:
+    """CRUD via InvoiceNotesIntent."""
+
+    def test_create_returns_note(self, notes_intent):
+        result = notes_intent.create("Please pay within 30 days.")
+        assert result.was_intent_successful
+        assert result.data.text == "Please pay within 30 days."
+
+    def test_create_strips_whitespace(self, notes_intent):
+        result = notes_intent.create("  padded  ")
+        assert result.was_intent_successful
+        assert result.data.text == "padded"
+
+    def test_create_empty_text_fails(self, notes_intent):
+        result = notes_intent.create("")
+        assert not result.was_intent_successful
+
+    def test_create_whitespace_only_fails(self, notes_intent):
+        result = notes_intent.create("   ")
+        assert not result.was_intent_successful
+
+    def test_create_deduplicates(self, notes_intent):
+        r1 = notes_intent.create("Unique note")
+        r2 = notes_intent.create("Unique note")
+        assert r1.data.text == r2.data.text
+
+    def test_get_all_empty(self, notes_intent):
+        result = notes_intent.get_all()
+        assert result.was_intent_successful
+        assert result.data == []
+
+    def test_get_all_returns_created(self, notes_intent):
+        notes_intent.create("Note A")
+        notes_intent.create("Note B")
+        result = notes_intent.get_all()
+        assert result.was_intent_successful
+        texts = {n.text for n in result.data}
+        assert texts == {"Note A", "Note B"}
+
+    def test_delete(self, notes_intent):
+        created = notes_intent.create("To be deleted")
+        note_id = created.data.id
+        del_result = notes_intent.delete(note_id)
+        assert del_result.was_intent_successful
+        remaining = notes_intent.get_all()
+        assert all(n.id != note_id for n in remaining.data)
+
+
+@pytest.fixture
+def fake():
+    return faker.Faker()
+
+
+class TestInvoiceNotesRendering:
+    """Custom notes appear in rendered invoice HTML."""
+
+    def test_custom_notes_in_html(self, fake):
+        user = demo.create_fake_user(fake)
+        invoice = demo.create_fake_invoice(fake)
+        invoice.notes = "Custom closing note for this client."
+
+        html = rendering.render_invoice(
+            user=user,
+            invoice=invoice,
+            out_dir=None,
+            document_format="html",
+            only_final=False,
+        )
+
+        assert "Custom closing note for this client." in html
+
+    def test_default_closing_without_notes(self, fake):
+        user = demo.create_fake_user(fake)
+        invoice = demo.create_fake_invoice(fake)
+        invoice.notes = None
+
+        html = rendering.render_invoice(
+            user=user,
+            invoice=invoice,
+            out_dir=None,
+            document_format="html",
+            only_final=False,
+        )
+
+        assert "Custom closing note" not in html
+
+    def test_notes_override_default_closing(self, fake):
+        """When notes is set, the default 'Thank you' text must not appear."""
+        user = demo.create_fake_user(fake)
+        invoice = demo.create_fake_invoice(fake)
+        invoice.notes = "See you next quarter!"
+
+        html = rendering.render_invoice(
+            user=user,
+            invoice=invoice,
+            out_dir=None,
+            document_format="html",
+            only_final=False,
+        )
+
+        assert "See you next quarter!" in html
+        assert "Thank you" not in html

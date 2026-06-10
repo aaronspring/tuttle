@@ -139,7 +139,7 @@
   <div>
     <p>
       <br>
-    <span>{% if is_reminder %}Please settle the outstanding amount by the new due date.{% else %}Thank you for your business{% endif %}</span>
+    <span style="white-space:pre-line">{% if is_reminder %}Please settle the outstanding amount by the new due date.{% elif notes %}{{ notes }}{% else %}Thank you for your business{% endif %}</span>
    </p>
     <br>
     <br>

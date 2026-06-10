@@ -120,7 +120,7 @@
   </div>
 
   <div class="closing">
-    <p>{% if is_reminder %}Please settle the outstanding amount by the new due date.{% else %}Thank you for your business.{% endif %}</p>
+    <p>{% if is_reminder %}Please settle the outstanding amount by the new due date.{% elif notes %}<span style="white-space:pre-line">{{ notes }}</span>{% else %}Thank you for your business.{% endif %}</p>
     <div class="sig-line"></div>
     {{ user.name }}
   </div>

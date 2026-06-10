@@ -33,6 +33,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # Linux: install tooling needed by electron-builder for deb/rpm targets
+    - name: Install Linux packaging tools
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y rpm
+
     # Python sidecar
     - name: Install uv
       uses: astral-sh/setup-uv@v4
