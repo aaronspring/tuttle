@@ -1,0 +1,281 @@
+@page {
+  size: A4;
+  margin: 0 0 22mm 0;
+  @bottom-center {
+    content: element(runningFooter);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 9pt;
+  line-height: 1.55;
+  color: #1f2937;
+  font-weight: 400;
+}
+
+.invoice {
+  /* content padding; the header band breaks out to full bleed */
+  padding: 0 20mm;
+}
+
+/* ── Header band (full-bleed, sender only) ──────── */
+
+.header-band {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: 0 -20mm 22pt -20mm;
+  padding: 22mm 20mm 12pt 20mm;
+  background: #0f172a;
+  color: #fff;
+  border-bottom: 3pt solid #14b8a6;
+}
+
+.hb-name {
+  font-size: 20pt;
+  font-weight: 700;
+  letter-spacing: -0.4pt;
+  line-height: 1.1;
+}
+
+.hb-title {
+  font-size: 8.5pt;
+  color: #94a3b8;
+  margin-top: 3pt;
+  text-transform: uppercase;
+  letter-spacing: 1.5pt;
+}
+
+.hb-contact {
+  text-align: right;
+  font-size: 7.5pt;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+/* ── Shared section label ─────────────────────── */
+
+.label {
+  display: block;
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4pt;
+  color: #14b8a6;
+  margin-bottom: 5pt;
+}
+
+/* ── Recipient + meta ─────────────────────────── */
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 22pt;
+}
+
+.recipient-body {
+  font-size: 9pt;
+  line-height: 1.65;
+  color: #334155;
+}
+
+.meta-table {
+  border-collapse: collapse;
+}
+
+.meta-table td {
+  padding: 2pt 0;
+  font-size: 9pt;
+  vertical-align: baseline;
+}
+
+.meta-label {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2pt;
+  color: #94a3b8;
+  padding-right: 16pt;
+  white-space: nowrap;
+}
+
+.meta-value {
+  font-weight: 600;
+  color: #1f2937;
+  text-align: right;
+}
+
+/* ── Items table ──────────────────────────────── */
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10pt;
+}
+
+.items-table thead th {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+  color: #fff;
+  background: #0f172a;
+  text-align: left;
+  padding: 7pt 8pt;
+}
+
+.items-table thead th:first-child { border-top-left-radius: 3pt; border-bottom-left-radius: 3pt; }
+.items-table thead th:last-child { border-top-right-radius: 3pt; border-bottom-right-radius: 3pt; }
+
+.items-table tbody tr {
+  border-bottom: 0.5pt solid #e5e7eb;
+}
+
+.items-table tbody td {
+  padding: 9pt 8pt;
+  font-size: 8.5pt;
+  vertical-align: top;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-qty, .col-unit, .col-price, .col-vat, .col-subtotal {
+  text-align: right;
+}
+
+.items-table thead th.col-qty,
+.items-table thead th.col-unit,
+.items-table thead th.col-price,
+.items-table thead th.col-vat,
+.items-table thead th.col-subtotal {
+  text-align: right;
+}
+
+.col-date { width: 22%; }
+.col-desc { width: 22%; }
+.col-qty { width: 7%; }
+.col-unit { width: 8%; }
+.col-price { width: 14%; }
+.col-vat { width: 9%; }
+.col-subtotal { width: 14%; }
+
+/* ── Bottom section ───────────────────────────── */
+
+.bottom-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30pt;
+  padding-top: 4pt;
+}
+
+.payment {
+  flex: 1;
+  max-width: 240pt;
+}
+
+.payment-table {
+  margin-top: 2pt;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  line-height: 1.5;
+}
+
+.payment-key {
+  color: #94a3b8;
+  font-weight: 600;
+  padding: 2pt 10pt 2pt 0;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.payment-val {
+  color: #1f2937;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  letter-spacing: 0.3pt;
+  padding: 2pt 0;
+  vertical-align: top;
+}
+
+.totals {
+  width: 220pt;
+}
+
+.totals-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 4pt 0;
+  font-size: 9pt;
+  border-bottom: 0.5pt solid #e5e7eb;
+}
+
+.totals-label {
+  color: #64748b;
+}
+
+.totals-amount {
+  font-variant-numeric: tabular-nums;
+  color: #1f2937;
+}
+
+.total-due {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6pt;
+  padding: 9pt 12pt;
+  background: #0f172a;
+  border-radius: 3pt;
+  font-size: 11.5pt;
+  font-weight: 700;
+}
+
+.total-due .totals-label,
+.total-due .totals-amount {
+  color: #fff;
+}
+
+/* ── Closing ──────────────────────────────────── */
+
+.closing {
+  margin-bottom: 40pt;
+  font-size: 9pt;
+  color: #475569;
+}
+
+.closing p {
+  margin-bottom: 22pt;
+}
+
+.sig-line {
+  width: 120pt;
+  border-bottom: 0.5pt solid #94a3b8;
+  margin-bottom: 4pt;
+}
+
+/* ── Footer ───────────────────────────────────── */
+
+.footer {
+  position: running(runningFooter);
+  display: flex;
+  justify-content: center;
+  gap: 14pt;
+  font-size: 7pt;
+  color: #94a3b8;
+  padding-top: 6pt;
+  border-top: 0.5pt solid #e5e7eb;
+}
+
+.footer span {
+  color: #64748b;
+}

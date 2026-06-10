@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% if is_reminder %}{{ reminder_title }} – {{ invoice.number }}{% else %}{{ l.invoice_no }} {{ invoice.number }}{% endif %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./invoice.css">
+</head>
+<body>
+
+<div class="invoice">
+
+  <!-- Header band: sender as letterhead only — no return-line / address window -->
+  <div class="header-band">
+    <div class="hb-identity">
+      <div class="hb-name">{{ user.name }}</div>
+      {% if user.subtitle %}<div class="hb-title">{{ user.subtitle }}</div>{% endif %}
+    </div>
+    <div class="hb-contact">
+      {{ user.address.street }} {{ user.address.number }}<br>
+      {{ user.address.postal_code }} {{ user.address.city }}<br>
+      {{ user.address.country }}<br>
+      {{ user.email }}{% if user.phone_number %}<br>{{ user.phone_number }}{% endif %}{% if user.website %}<br>{{ user.website }}{% endif %}
+    </div>
+  </div>
+
+  <!-- Recipient + invoice meta -->
+  <div class="info-row">
+    <div class="recipient">
+      <span class="label">{{ l.billed_to }}</span>
+      <div class="recipient-body">
+        <div><strong>{{ invoice.contract.client.name }}</strong></div>
+        {% if invoice.contract.client.invoicing_contact %}
+        <div>c/o {{ invoice.contract.client.invoicing_contact.name }}</div>
+        {% endif %}
+        {% if invoice.contract.client.invoice_recipient_address %}
+        <div>{{ invoice.contract.client.invoice_recipient_address.street }} {{ invoice.contract.client.invoice_recipient_address.number }}</div>
+        <div>{{ invoice.contract.client.invoice_recipient_address.postal_code }} {{ invoice.contract.client.invoice_recipient_address.city }}</div>
+        <div>{{ invoice.contract.client.invoice_recipient_address.country }}</div>
+        {% endif %}
+      </div>
+    </div>
+    <table class="meta-table">
+      {% if is_reminder %}
+      <tr>
+        <td class="meta-label">{{ reminder_title }}</td>
+        <td class="meta-value"></td>
+      </tr>
+      <tr>
+        <td class="meta-label">{{ l.original_invoice }}</td>
+        <td class="meta-value">{{ invoice.number }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td class="meta-label">{{ l.invoice_no }}</td>
+        <td class="meta-value">{{ invoice.number }}</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <td class="meta-label">{{ l.date }}</td>
+        <td class="meta-value">{{ invoice.date | as_date }}</td>
+      </tr>
+      <tr>
+        <td class="meta-label">{{ l.due_date }}</td>
+        <td class="meta-value">{{ invoice.effective_due_date | as_date }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th class="col-date">{{ l.date }}</th>
+        <th class="col-desc">{{ l.description }}</th>
+        <th class="col-qty">{{ l.qty }}</th>
+        <th class="col-unit">{{ l.unit }}</th>
+        <th class="col-price">{{ l.unit_price }}</th>
+        <th class="col-vat">{{ l.vat }}</th>
+        <th class="col-subtotal">{{ l.subtotal }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in invoice.items %}
+      <tr>
+        <td class="col-date">{{ item.start_date | as_date_short }}&hairsp;&ndash;&hairsp;{{ item.end_date | as_date_short }}</td>
+        <td class="col-desc">{{ item.description }}</td>
+        <td class="col-qty num">{{ item.quantity }}</td>
+        <td class="col-unit">{{ item.unit | unit_label(item.quantity) }}</td>
+        <td class="col-price num">{{ item.unit_price | as_currency }}</td>
+        <td class="col-vat num">{{ item.VAT_rate | as_percentage }}</td>
+        <td class="col-subtotal num">{{ item.subtotal | as_currency }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="bottom-section">
+    <div class="payment">
+      <span class="label">{{ l.payment }}</span>
+      {% if user.bank_account %}
+      <table class="payment-table">
+        {% if user.bank_account.name %}<tr><td class="payment-key">{{ l.account_holder }}</td><td class="payment-val">{{ user.bank_account.name }}</td></tr>{% endif %}
+        <tr><td class="payment-key">IBAN</td><td class="payment-val">{{ user.bank_account.IBAN }}</td></tr>
+        {% if user.bank_account.BIC %}<tr><td class="payment-key">BIC</td><td class="payment-val">{{ user.bank_account.BIC }}</td></tr>{% endif %}
+      </table>
+      {% endif %}
+    </div>
+    <div class="totals">
+      <div class="totals-line">
+        <span class="totals-label">{{ l.subtotal }}</span>
+        <span class="totals-amount">{{ invoice.sum | as_currency }}</span>
+      </div>
+      <div class="totals-line">
+        <span class="totals-label">{{ l.vat }}</span>
+        <span class="totals-amount">{{ invoice.VAT_total | as_currency }}</span>
+      </div>
+      {% if is_reminder and invoice.reminder_fee %}
+      <div class="totals-line">
+        <span class="totals-label">{{ l.reminder_fee }}</span>
+        <span class="totals-amount">{{ invoice.reminder_fee | as_currency }}</span>
+      </div>
+      {% endif %}
+      <div class="total-due">
+        <span class="totals-label">{{ l.total_due }}</span>
+        <span class="totals-amount">{{ invoice.total | as_currency }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="closing">
+    <p>{% if is_reminder %}{{ l.reminder_closing }}{% else %}{{ l.closing }}{% endif %}</p>
+    <div class="sig-line"></div>
+    {{ user.name }}
+  </div>
+
+  <div class="footer">
+    <span>{{ user.name }}</span>
+    {% if user.bank_account %}<span>IBAN: {{ user.bank_account.IBAN }}</span>
+    {% if user.bank_account.BIC %}<span>BIC: {{ user.bank_account.BIC }}</span>{% endif %}{% endif %}
+    {% if user.VAT_number %}<span>{{ l.vat }}: {{ user.VAT_number }}</span>{% endif %}
+  </div>
+
+</div>
+
+</body>
+</html>
