@@ -141,9 +141,9 @@ export function DashboardView() {
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: "#b8b8bc" }} />
-              <Bar dataKey="invoiced" name="Invoiced" stackId="rev" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="pending" name="Pending" stackId="rev" fill="#93c5fd" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="planned" name="Planned" stackId="rev" fill="#3b82f6" opacity={0.4} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="invoiced" name="Invoiced" stackId="rev" fill="#4ADE80" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="pending" name="Pending" stackId="rev" fill="#FACC15" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="planned" name="Planned" stackId="rev" fill="#60A5FA" radius={[3, 3, 0, 0]} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -175,7 +175,7 @@ export function DashboardView() {
                     <div className="h-full transition-all duration-300"
                       style={{
                         width: `${plannedPct * 100}%`,
-                        background: "repeating-linear-gradient(45deg, #3b82f6 0, #3b82f6 2px, transparent 2px, transparent 5px)",
+                        background: "repeating-linear-gradient(45deg, #60A5FA 0, #60A5FA 2px, transparent 2px, transparent 5px)",
                         opacity: 0.5,
                       }} />
                   )}
