@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% if is_reminder %}{{ reminder_title }} – {{ invoice.number }}{% else %}{{ l.invoice_no }} {{ invoice.number }}{% endif %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./invoice.css">
+</head>
+<body>
+
+<div class="invoice">
+
+  <div class="top-zone">
+    <div class="address-window">
+      <div class="return-line">{{ user.name }} | {{ user.address.street }} {{ user.address.number }} | {{ user.address.postal_code }} {{ user.address.city }}</div>
+      <div class="recipient">
+        <div><strong>{{ invoice.contract.client.name }}</strong></div>
+        {% if invoice.contract.client.invoicing_contact %}
+        <div>c/o {{ invoice.contract.client.invoicing_contact.name }}</div>
+        {% endif %}
+        {% if invoice.contract.client.invoice_recipient_address %}
+        <div>{{ invoice.contract.client.invoice_recipient_address.street }} {{ invoice.contract.client.invoice_recipient_address.number }}</div>
+        <div>{{ invoice.contract.client.invoice_recipient_address.postal_code }} {{ invoice.contract.client.invoice_recipient_address.city }}</div>
+        {% if invoice.contract.client.invoice_recipient_address.country %}<div>{{ invoice.contract.client.invoice_recipient_address.country }}</div>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="letterhead">
+      <div class="lh-name">{{ user.name }}</div>
+      <div class="lh-title">{{ user.subtitle }}</div>
+      <div class="lh-details">
+        {{ user.name }}<br>
+        {{ user.address.street }} {{ user.address.number }}<br>
+        {{ user.address.postal_code }} {{ user.address.city }}<br>
+        {{ user.address.country }}<br>
+        <br>
+        {% if user.phone_number %}{{ user.phone_number }}<br>{% endif %}
+        {{ user.email }}<br>
+        <br>
+        {{ invoice.date | as_date }}
+      </div>
+    </div>
+  </div>
+
+  {% if is_reminder %}
+  <div class="reminder-badge">{{ reminder_title }}</div>
+  {% endif %}
+
+  <h1 class="invoice-title">{{ l.invoice_no }} {{ invoice.number }}</h1>
+
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th class="col-date">{{ l.date }}</th>
+        <th class="col-qty">{{ l.qty }}</th>
+        <th class="col-desc">{{ l.description }}</th>
+        <th class="col-price">{{ l.unit_price }} (€)</th>
+        <th class="col-subtotal">{{ l.subtotal }} (€)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in invoice.items %}
+      <tr>
+        <td class="col-date">{{ item.start_date | as_date_short }}&ndash;{{ item.end_date | as_date_short }}</td>
+        <td class="col-qty">{{ item.quantity }}</td>
+        <td class="col-desc">{{ item.description }}</td>
+        <td class="col-price num">{{ item.unit_price | as_currency }}</td>
+        <td class="col-subtotal num">{{ item.subtotal | as_currency }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals-table">
+    <tr>
+      <td class="totals-label">{{ l.subtotal }}</td>
+      <td class="totals-value">{{ invoice.sum | as_currency }}</td>
+    </tr>
+    <tr>
+      <td class="totals-label">{{ l.vat }} ({{ (invoice.items[0].VAT_rate * 100) | int }}%)</td>
+      <td class="totals-value">{{ invoice.VAT_total | as_currency }}</td>
+    </tr>
+    {% if is_reminder and invoice.reminder_fee %}
+    <tr>
+      <td class="totals-label">{{ l.reminder_fee }}</td>
+      <td class="totals-value">{{ invoice.reminder_fee | as_currency }}</td>
+    </tr>
+    {% endif %}
+    <tr class="total-due-row">
+      <td class="totals-label"><strong>{{ l.total_due }} (€)</strong></td>
+      <td class="totals-value"><strong>{{ invoice.total | as_currency }}</strong></td>
+    </tr>
+  </table>
+
+  <div class="closing">
+    <p>{% if is_reminder %}{{ l.reminder_closing }}{% elif notes %}<span style="white-space:pre-line">{{ notes }}</span>{% else %}{{ l.closing }}{% endif %}</p>
+    <br>
+    <br>
+    <p>{{ user.name }}</p>
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">
+      <span class="footer-name">{{ user.name }}</span>
+    </div>
+    <div class="footer-center">
+      {% if user.bank_account %}<span>IBAN: {{ user.bank_account.IBAN }}</span>{% endif %}
+      {% if user.phone_number %}<span>Tel. {{ user.phone_number }}</span>{% endif %}
+      {% if user.bank_account and user.bank_account.BIC %}<br><span>BIC: {{ user.bank_account.BIC }}</span>{% endif %}
+      {% if user.website %}<span>{{ user.website }}</span>{% endif %}
+    </div>
+    <div class="footer-right">
+      {% if user.VAT_number %}<span>USt.ID: {{ user.VAT_number }}</span>{% endif %}
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
