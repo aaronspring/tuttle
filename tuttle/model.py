@@ -425,6 +425,7 @@ class Contract(RpcMixin, SQLModel, table=True):
         "projects": ("id", "title"),
         "invoices": ("id",),
     }
+    __rpc_computed__ = ("unit_abbrev",)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(
@@ -490,6 +491,11 @@ class Contract(RpcMixin, SQLModel, table=True):
         back_populates="contract",
         sa_relationship_kwargs={"lazy": "subquery", "passive_deletes": "all"},
     )
+
+    @property
+    def unit_abbrev(self) -> str:
+        """Short display label for the billing unit, e.g. 'h' or 'd'."""
+        return self.unit.abbrev
 
     @property
     def volume_as_time(self):
@@ -862,6 +868,10 @@ class Invoice(RpcMixin, SQLModel, table=True):
         default=False,
         description="Whether the invoice has been rendered as a PDF.",
     )
+    notes: Optional[str] = Field(
+        default=None,
+        description="Custom closing text. When None, the language default is used.",
+    )
 
     def __repr__(self):
         return f"Invoice(id={self.id}, number={self.number}, date={self.date}, type={self.document_type})"
@@ -1046,6 +1056,17 @@ class InvoiceItem(RpcMixin, SQLModel, table=True):
 # class Payment(SQLModel, table=True):
 #     id: Optional[int] = Field(default=None, primary_key=True)
 #     # invoice: Invoice = Relationship(back_populates="payment")
+
+
+class InvoiceNote(RpcMixin, SQLModel, table=True):
+    """A reusable note that can be attached to invoices as closing text."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    text: str = Field(description="The note text content.")
+    created_at: datetime.datetime = Field(
+        default_factory=datetime.datetime.now,
+        description="When this note was saved.",
+    )
 
 
 class TimelineItem(SQLModel, table=True):

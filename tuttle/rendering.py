@@ -227,6 +227,7 @@ def render_invoice(
         l=labels,
         is_reminder=is_reminder,
         reminder_title=reminder_title,
+        notes=invoice.notes,
     )
     if out_dir is None:
         return html

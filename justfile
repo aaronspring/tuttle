@@ -178,9 +178,19 @@ release part *flags="":
     {{python}} -m bumpversion bump {{part}} ${bump_flags[@]+"${bump_flags[@]}"}
     if [[ "$dry_run" -eq 1 ]]; then exit 0; fi
     tag=$(git describe --tags --abbrev=0)
+    version="${tag#v}"
     git push origin main
     git push origin "$tag"
-    gh_flags=(--generate-notes)
+
+    # Build release body: download guide + auto-generated changelog
+    notes=$(gh api repos/{owner}/{repo}/releases/generate-notes \
+        -f tag_name="$tag" --jq .body 2>/dev/null || true)
+    notes_file=$(mktemp)
+    trap 'rm -f "$notes_file"' EXIT
+    sed "s/__VERSION__/${version}/g" .github/release-body-template.md > "$notes_file"
+    printf '\n%s\n' "$notes" >> "$notes_file"
+
+    gh_flags=(--notes-file "$notes_file")
     if [[ "$tag" == *a* || "$tag" == *b* || "$tag" == *rc* ]]; then
         gh_flags+=(--prerelease)
     fi

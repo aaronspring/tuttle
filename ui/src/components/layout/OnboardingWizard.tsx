@@ -461,7 +461,7 @@ export function OnboardingWizard({ open, onClose, onSubmit, onDemo, loading, ove
           </div>
         </div>
 
-        {llm.provider === "openai" && (
+        {llm.provider !== "ollama" && (
           <div>
             <label className={labelCls}>API Key</label>
             <input
@@ -471,6 +471,9 @@ export function OnboardingWizard({ open, onClose, onSubmit, onDemo, loading, ove
               placeholder="sk-…"
               className={inputCls}
             />
+            <p className="mt-1 text-xs text-muted">
+              Required for most OpenAI-compatible providers. Leave blank if the endpoint needs no authentication.
+            </p>
           </div>
         )}
 

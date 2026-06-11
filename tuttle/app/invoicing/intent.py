@@ -63,6 +63,7 @@ class InvoicingIntent(Intent):
         manual_quantity=None,
         manual_items=None,
         with_timesheet=True,
+        notes=None,
     ) -> IntentResult:
         """Orchestrates invoice creation: resolve project, read prefs, delegate."""
         proj_result = self._projects_intent.get_by_id(project_id)
@@ -99,6 +100,7 @@ class InvoicingIntent(Intent):
             number_scheme=number_scheme,
             with_timesheet=with_timesheet,
             e_invoice_profile=e_invoice_profile or None,
+            notes=notes,
         )
 
     # -- Status toggles (accept id, fetch internally) --------------------------
@@ -230,6 +232,7 @@ class InvoicingIntent(Intent):
         number_scheme: str = DEFAULT_INVOICE_NUMBER_SCHEME,
         with_timesheet: bool = True,
         e_invoice_profile: Optional[str] = None,
+        notes: Optional[str] = None,
     ) -> IntentResult[Invoice]:
         """Create a new invoice.
 
@@ -311,6 +314,9 @@ class InvoicingIntent(Intent):
                     project=project,
                 )
                 timesheet.invoice = invoice
+
+            if notes:
+                invoice.notes = notes.strip() or None
 
             render_warnings: list[str] = []
             if render:

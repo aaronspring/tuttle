@@ -1,0 +1,282 @@
+@page {
+  size: A4;
+  margin: 20mm 20mm 22mm 25mm;
+  @bottom-center {
+    content: element(runningFooter);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Helvetica, "Helvetica Neue", Arial, sans-serif;
+  font-size: 9pt;
+  line-height: 1.5;
+  color: #343434;
+}
+
+.invoice {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* ── Top Zone ────────────────────────────────── */
+
+.top-zone {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 40pt;
+}
+
+.address-window {
+  width: 260pt;
+  padding-top: 14pt;
+}
+
+.return-line {
+  font-size: 6.5pt;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.3pt;
+  color: #343434;
+  padding-bottom: 12pt;
+  margin-bottom: 8pt;
+}
+
+.recipient {
+  font-size: 10pt;
+  line-height: 1.7;
+  color: #000;
+}
+
+.letterhead {
+  text-align: right;
+  padding-top: 0;
+}
+
+.lh-name {
+  font-size: 16pt;
+  font-weight: 700;
+  color: #000;
+  line-height: 1.2;
+}
+
+.lh-title {
+  font-size: 9pt;
+  font-weight: 400;
+  color: #4d4d4d;
+  margin-top: 1pt;
+  margin-bottom: 16pt;
+}
+
+.lh-details {
+  font-size: 8pt;
+  line-height: 1.7;
+  color: #4d4d4d;
+  text-align: right;
+}
+
+/* ── Reminder Badge ──────────────────────────── */
+
+.reminder-badge {
+  font-size: 1.1em;
+  font-weight: 700;
+  margin-bottom: 0.6em;
+}
+
+/* ── Invoice Title ───────────────────────────── */
+
+.invoice-title {
+  font-size: 12pt;
+  font-weight: 700;
+  color: #343434;
+  margin-bottom: 12pt;
+  margin-top: 0;
+}
+
+/* ── Items Table ─────────────────────────────── */
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 6pt;
+  font-size: 8.5pt;
+}
+
+.items-table thead tr {
+  background-color: #e6e6e6;
+}
+
+.items-table thead th {
+  font-size: 8pt;
+  font-weight: 400;
+  color: #4d4d4d;
+  text-align: left;
+  padding: 6pt 7pt;
+  border: 0.5pt solid #bfbfbf;
+  border-top: 0.75pt solid #333;
+}
+
+.items-table thead th:first-child {
+  border-left: 0.75pt solid #333;
+}
+
+.items-table thead th:last-child {
+  border-right: 0.75pt solid #333;
+}
+
+.items-table tbody tr:nth-child(odd) {
+  background-color: #ebebeb;
+}
+
+.items-table tbody tr:nth-child(even) {
+  background-color: #fff;
+}
+
+.items-table tbody td {
+  padding: 6pt 7pt;
+  font-size: 8.5pt;
+  color: #4d4d4d;
+  vertical-align: top;
+  border: 0.5pt solid #bfbfbf;
+}
+
+.items-table tbody tr td:first-child {
+  border-left: 0.75pt solid #333;
+}
+
+.items-table tbody tr td:last-child {
+  border-right: 0.75pt solid #333;
+}
+
+.items-table tbody tr:last-child td {
+  border-bottom: 0.75pt solid #333;
+}
+
+/* Column widths */
+.col-date { width: 19%; }
+.col-qty { width: 8%; text-align: center; }
+.col-desc { width: 33%; }
+.col-price { width: 19%; text-align: right; }
+.col-subtotal { width: 21%; text-align: right; }
+
+.items-table thead th.col-qty { text-align: center; }
+.items-table thead th.col-price { text-align: right; }
+.items-table thead th.col-subtotal { text-align: right; }
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.items-table tbody td.col-qty {
+  text-align: center;
+}
+
+/* ── Totals Table ────────────────────────────── */
+
+.totals-table {
+  width: auto;
+  margin-left: auto;
+  border-collapse: collapse;
+  margin-bottom: 30pt;
+  font-size: 8.5pt;
+}
+
+.totals-table tr {
+  background-color: #ebebeb;
+}
+
+.totals-table tr:nth-child(even) {
+  background-color: #fff;
+}
+
+.totals-table td {
+  padding: 6pt 10pt;
+  border: 0.5pt solid #bfbfbf;
+  color: #4d4d4d;
+}
+
+.totals-table .totals-label {
+  text-align: right;
+  min-width: 100pt;
+}
+
+.totals-table .totals-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  min-width: 80pt;
+}
+
+.totals-table tr.total-due-row {
+  background-color: #ebebeb;
+}
+
+.totals-table tr.total-due-row td {
+  border-top: 0.75pt solid #333;
+}
+
+.totals-table tr.total-due-row .totals-label,
+.totals-table tr.total-due-row .totals-value {
+  color: #000;
+}
+
+/* ── Closing ─────────────────────────────────── */
+
+.closing {
+  margin-top: 30pt;
+  margin-bottom: 40pt;
+  font-size: 9pt;
+  color: #343434;
+  line-height: 1.9;
+}
+
+.closing p {
+  margin-bottom: 0;
+}
+
+/* ── Footer ──────────────────────────────────── */
+
+.footer {
+  position: running(runningFooter);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 6.5pt;
+  color: #4d4d4d;
+  padding-top: 8pt;
+  border-top: 0.5pt solid #bbb;
+  gap: 8pt;
+}
+
+.footer-left {
+  white-space: nowrap;
+}
+
+.footer-center {
+  text-align: center;
+}
+
+.footer-center span {
+  white-space: nowrap;
+}
+
+.footer-center span + span {
+  margin-left: 6pt;
+}
+
+.footer-right {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.footer .footer-name {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3pt;
+}

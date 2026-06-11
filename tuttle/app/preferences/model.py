@@ -5,6 +5,8 @@ from enum import Enum
 INVOICE_TEMPLATES = {
     "invoice-modern": "Modern",
     "invoice-minimal": "Minimal",
+    "invoice-bold": "Bold",
+    "invoice-grayshades": "Grayshades",
 }
 
 SUPPORTED_INVOICE_LANGUAGES = {

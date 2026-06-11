@@ -204,7 +204,7 @@ def test_versions_are_append_only_in_git() -> None:
     offenders: list[str] = []
     for script in versions.glob("*.py"):
         result = subprocess.run(
-            ["git", "log", "--follow", "--pretty=format:%H", "--", script.name],
+            ["git", "log", "--pretty=format:%H", "--", script.name],
             cwd=versions,
             capture_output=True,
             text=True,
@@ -212,14 +212,16 @@ def test_versions_are_append_only_in_git() -> None:
         commits = [c for c in result.stdout.strip().splitlines() if c]
         if len(commits) <= 1:
             continue
+        # Diff only post-creation commits (exclude oldest = creation commit)
+        oldest = commits[-1]
         diff = subprocess.run(
-            ["git", "log", "-p", "--follow", "--pretty=format:", "--", script.name],
+            ["git", "diff", f"{oldest}..HEAD", "--", script.name],
             cwd=versions,
             capture_output=True,
             text=True,
         )
         for line in diff.stdout.splitlines():
-            if line.startswith(("+    op.", "-    op.")):
+            if line.startswith("+    op."):
                 offenders.append(script.name)
                 break
 

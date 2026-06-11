@@ -1,8 +1,13 @@
 {
   "name": "tuttle-ui",
   "productName": "Tuttle",
-  "version": "3.7.1",
+  "version": "3.7.3",
   "description": "Cross-platform Electron UI for Tuttle",
+  "homepage": "https://github.com/tuttle-dev/tuttle",
+  "author": {
+    "name": "Tuttle",
+    "email": "hi@tuttle.dev"
+  },
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
@@ -38,22 +43,31 @@
       "releaseType": "release"
     },
     "mac": {
+      "artifactName": "Tuttle-${version}-macOS-${arch}.${ext}",
       "category": "public.app-category.business",
       "target": [
         "zip",
-        "dmg",
-        "dir"
+        "dmg"
       ],
       "extendInfo": {
         "NSCalendarsFullAccessUsageDescription": "Tuttle needs access to your calendars to import events for time tracking."
       }
     },
     "win": {
+      "artifactName": "Tuttle-${version}-Windows-Setup.${ext}",
       "target": "nsis"
     },
     "linux": {
-      "target": "AppImage",
-      "category": "Office"
+      "target": ["AppImage", "deb", "rpm"],
+      "category": "Office",
+      "executableName": "tuttle",
+      "artifactName": "Tuttle-${version}-Linux-${arch}.${ext}"
+    },
+    "deb": {
+      "depends": ["zlib1g", "libfuse2"]
+    },
+    "rpm": {
+      "depends": ["zlib", "fuse2-libs"]
     }
   },
   "dependencies": {

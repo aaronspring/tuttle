@@ -123,7 +123,11 @@ export function SettingsView() {
   const [invoicingSaving, setInvoicingSaving] = useState(false);
   const [invoicingStatus, setInvoicingStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
-  useEffect(() => { loadConfig(); loadProfile(); loadInvoicingPrefs(); loadSupportedCountries(); }, []);
+  const [savedNotes, setSavedNotes] = useState<Entity[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+
+  useEffect(() => { loadConfig(); loadProfile(); loadInvoicingPrefs(); loadSupportedCountries(); loadSavedNotes(); }, []);
 
   // -- LLM config ----------------------------------------------------------
 
@@ -292,6 +296,30 @@ export function SettingsView() {
     });
     setInvoicingStatus(res.ok ? { type: "success", msg: "Invoicing preferences saved." } : { type: "error", msg: res.error || "Failed to save." });
     setInvoicingSaving(false);
+  }
+
+  // -- Saved invoice notes -------------------------------------------------
+
+  async function loadSavedNotes() {
+    const res = await rpc<Entity[]>("invoice_notes.get_all");
+    if (res.ok && res.data) setSavedNotes(res.data);
+  }
+
+  async function handleAddNote() {
+    const text = newNoteText.trim();
+    if (!text) return;
+    setAddingNote(true);
+    const res = await rpc<Entity>("invoice_notes.create", { text });
+    if (res.ok) {
+      setNewNoteText("");
+      await loadSavedNotes();
+    }
+    setAddingNote(false);
+  }
+
+  async function handleDeleteNote(id: number) {
+    await rpc("invoice_notes.delete", { id });
+    await loadSavedNotes();
   }
 
   // -- Render --------------------------------------------------------------
@@ -597,6 +625,46 @@ export function SettingsView() {
             <Save size={14} />
             {invoicingSaving ? "Saving…" : "Save Invoicing Preferences"}
           </button>
+
+          <div className="pt-4 border-t border-border-subtle">
+            <label className={labelCls}>Saved Invoice Notes</label>
+            <p className="text-xs text-muted mb-2">Reusable closing notes for invoices (e.g. VAT exemption, reverse charge). These appear as quick-select options when creating an invoice.</p>
+
+            {savedNotes.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                {savedNotes.map((n) => (
+                  <div key={n.id} className="flex items-start gap-2 p-2 rounded-lg bg-bg-card border border-border-subtle">
+                    <span className="flex-1 text-xs text-primary whitespace-pre-wrap break-words">{str(n, "text")}</span>
+                    <button
+                      onClick={() => handleDeleteNote(n.id)}
+                      className="shrink-0 p-1 rounded text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                      title="Delete note"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newNoteText}
+                onChange={(e) => setNewNoteText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddNote(); } }}
+                placeholder="Add a new note…"
+                className="flex-1 px-3 py-1.5 rounded-md bg-bg-card border border-border-subtle text-sm text-primary placeholder:text-muted"
+              />
+              <button
+                onClick={handleAddNote}
+                disabled={addingNote || !newNoteText.trim()}
+                className="px-3 py-1.5 rounded-md text-sm font-medium bg-accent/10 text-primary hover:bg-accent/20 border border-accent/30 transition-colors disabled:opacity-40"
+              >
+                {addingNote ? "Adding…" : "Add"}
+              </button>
+            </div>
+          </div>
         </section>
       )}
 
@@ -650,7 +718,7 @@ export function SettingsView() {
             </div>
           </div>
 
-          {config.provider === "openai" && (
+          {config.provider !== "ollama" && (
             <div>
               <label className={labelCls}>API Key</label>
               <input
@@ -660,6 +728,9 @@ export function SettingsView() {
                 placeholder="sk-…"
                 className={inputCls}
               />
+              <p className="mt-1 text-xs text-muted">
+                Required for most OpenAI-compatible providers. Leave blank if the endpoint needs no authentication.
+              </p>
             </div>
           )}
 

@@ -296,14 +296,18 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [withTimesheet, setWithTimesheet] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [savedNotes, setSavedNotes] = useState<Entity[]>([]);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<number>>(new Set());
+  const [customNoteText, setCustomNoteText] = useState("");
 
   const selectedProject = projects.find((p) => p.id === projectId) ?? null;
 
   useEffect(() => {
     (async () => {
-      const [projRes, ttRes] = await Promise.all([
+      const [projRes, ttRes, notesRes] = await Promise.all([
         rpc<Entity[]>("projects.get_all"),
         rpc<{ total_events: number }>("timetracking.get_summary"),
+        rpc<Entity[]>("invoice_notes.get_all"),
       ]);
       if (projRes.ok && projRes.data) {
         const active = projRes.data.filter((p) => !bool(p, "is_completed"));
@@ -315,6 +319,7 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
       }
       if (ttRes.ok && ttRes.data && ttRes.data.total_events > 0) setHasTimeData(true);
       else setMode("manual");
+      if (notesRes.ok && notesRes.data) setSavedNotes(notesRes.data);
     })();
   }, []);
 
@@ -365,6 +370,14 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     } else {
       params.with_timesheet = withTimesheet;
     }
+    const custom = customNoteText.trim();
+    if (custom) await rpc("invoice_notes.create", { text: custom });
+    const parts: string[] = [];
+    for (const n of savedNotes) {
+      if (selectedNoteIds.has(n.id)) parts.push(str(n, "text"));
+    }
+    if (custom) parts.push(custom);
+    if (parts.length > 0) params.notes = parts.join("\n");
     const res = await rpc<{ id?: number }>("invoicing.create", params);
     if (res.ok) {
       await onCreated(res.data?.id, res.warning);
@@ -506,6 +519,42 @@ function CreateInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
               </button>
             </div>
           )}
+
+          {/* Notes */}
+          <div>
+            <span className="text-xs font-semibold text-secondary uppercase tracking-wider">Closing Notes</span>
+            <p className="text-[10px] text-muted mt-0.5 mb-1.5">Optional text printed at the bottom of the invoice (e.g. VAT exemption, reverse charge).</p>
+            {savedNotes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {savedNotes.map((n) => {
+                  const active = selectedNoteIds.has(n.id);
+                  return (
+                    <button key={n.id} type="button"
+                      onClick={() => setSelectedNoteIds((prev) => {
+                        const next = new Set(prev);
+                        if (active) next.delete(n.id); else next.add(n.id);
+                        return next;
+                      })}
+                      className={`px-2.5 py-1 rounded-full text-[11px] leading-tight border transition-colors truncate max-w-[280px]
+                        ${active
+                          ? "border-accent bg-accent/15 text-primary"
+                          : "border-border-subtle text-secondary hover:border-accent/50 hover:text-primary"}`}
+                      title={str(n, "text")}
+                    >
+                      {str(n, "text")}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <textarea
+              value={customNoteText}
+              onChange={(e) => setCustomNoteText(e.target.value)}
+              placeholder="Type additional notes…"
+              rows={2}
+              className="w-full px-2.5 py-1.5 rounded-md bg-bg-card border border-border-subtle text-xs text-primary placeholder:text-muted resize-y"
+            />
+          </div>
 
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>

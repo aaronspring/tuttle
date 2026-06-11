@@ -10,11 +10,25 @@
 
 <div class="invoice">
 
-  <!-- DIN 5008 top zone: letterhead right, address window left -->
-  <div class="top-zone">
-    <div class="address-window">
-      <div class="return-line">{{ user.name }} · {{ user.address.street }} {{ user.address.number }} · {{ user.address.postal_code }} {{ user.address.city }}</div>
-      <div class="recipient">
+  <!-- Header band: sender as letterhead only — no return-line / address window -->
+  <div class="header-band">
+    <div class="hb-identity">
+      <div class="hb-name">{{ user.name }}</div>
+      {% if user.subtitle %}<div class="hb-title">{{ user.subtitle }}</div>{% endif %}
+    </div>
+    <div class="hb-contact">
+      {{ user.address.street }} {{ user.address.number }}<br>
+      {{ user.address.postal_code }} {{ user.address.city }}<br>
+      {{ user.address.country }}<br>
+      {{ user.email }}{% if user.phone_number %}<br>{{ user.phone_number }}{% endif %}{% if user.website %}<br>{{ user.website }}{% endif %}
+    </div>
+  </div>
+
+  <!-- Recipient + invoice meta -->
+  <div class="info-row">
+    <div class="recipient">
+      <span class="label">{{ l.billed_to }}</span>
+      <div class="recipient-body">
         <div><strong>{{ invoice.contract.client.name }}</strong></div>
         {% if invoice.contract.client.invoicing_contact %}
         <div>c/o {{ invoice.contract.client.invoicing_contact.name }}</div>
@@ -26,49 +40,32 @@
         {% endif %}
       </div>
     </div>
-    <div class="letterhead">
-      <div class="lh-name">{{ user.name }}</div>
-      <div class="lh-title">{{ user.subtitle }}</div>
-      <div class="lh-details">
-        {{ user.address.street }} {{ user.address.number }}<br>
-        {{ user.address.postal_code }} {{ user.address.city }}<br>
-        {{ user.address.country }}<br>
-        <br>
-        {{ user.email }}<br>
-        {% if user.phone_number %}{{ user.phone_number }}<br>{% endif %}
-        {% if user.website %}{{ user.website }}{% endif %}
-      </div>
-    </div>
+    <table class="meta-table">
+      {% if is_reminder %}
+      <tr>
+        <td class="meta-label">{{ reminder_title }}</td>
+        <td class="meta-value"></td>
+      </tr>
+      <tr>
+        <td class="meta-label">{{ l.original_invoice }}</td>
+        <td class="meta-value">{{ invoice.number }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td class="meta-label">{{ l.invoice_no }}</td>
+        <td class="meta-value">{{ invoice.number }}</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <td class="meta-label">{{ l.date }}</td>
+        <td class="meta-value">{{ invoice.date | as_date }}</td>
+      </tr>
+      <tr>
+        <td class="meta-label">{{ l.due_date }}</td>
+        <td class="meta-value">{{ invoice.effective_due_date | as_date }}</td>
+      </tr>
+    </table>
   </div>
-
-  <div class="divider"></div>
-
-  {% if is_reminder %}
-  <div class="reminder-badge" style="font-size:1.1em; font-weight:700; margin-bottom:.6em;">{{ reminder_title }}</div>
-  {% endif %}
-
-  <table class="meta-table">
-    <tr>
-      <td class="meta-label">{{ l.invoice_no }}</td>
-      <td class="meta-value">{{ invoice.number }}</td>
-    </tr>
-    {% if is_reminder %}
-    <tr>
-      <td class="meta-label">{{ l.original_invoice }}</td>
-      <td class="meta-value">{{ invoice.number }}</td>
-    </tr>
-    {% endif %}
-    <tr>
-      <td class="meta-label">{{ l.date }}</td>
-      <td class="meta-value">{{ invoice.date | as_date }}</td>
-    </tr>
-    <tr>
-      <td class="meta-label">{{ l.due_date }}</td>
-      <td class="meta-value">{{ invoice.effective_due_date | as_date }}</td>
-    </tr>
-  </table>
-
-  <div class="divider thin"></div>
 
   <table class="items-table">
     <thead>
@@ -97,39 +94,41 @@
     </tbody>
   </table>
 
-  <div class="totals-section">
+  <div class="bottom-section">
+    <div class="payment">
+      <span class="label">{{ l.payment }}</span>
+      {% if user.bank_account %}
+      <table class="payment-table">
+        {% if user.bank_account.name %}<tr><td class="payment-key">{{ l.account_holder }}</td><td class="payment-val">{{ user.bank_account.name }}</td></tr>{% endif %}
+        <tr><td class="payment-key">IBAN</td><td class="payment-val">{{ user.bank_account.IBAN }}</td></tr>
+        {% if user.bank_account.BIC %}<tr><td class="payment-key">BIC</td><td class="payment-val">{{ user.bank_account.BIC }}</td></tr>{% endif %}
+      </table>
+      {% endif %}
+    </div>
     <div class="totals">
       <div class="totals-line">
         <span class="totals-label">{{ l.subtotal }}</span>
-        <span class="totals-value">{{ invoice.sum | as_currency }}</span>
+        <span class="totals-amount">{{ invoice.sum | as_currency }}</span>
       </div>
       <div class="totals-line">
         <span class="totals-label">{{ l.vat }}</span>
-        <span class="totals-value">{{ invoice.VAT_total | as_currency }}</span>
+        <span class="totals-amount">{{ invoice.VAT_total | as_currency }}</span>
       </div>
       {% if is_reminder and invoice.reminder_fee %}
       <div class="totals-line">
         <span class="totals-label">{{ l.reminder_fee }}</span>
-        <span class="totals-value">{{ invoice.reminder_fee | as_currency }}</span>
+        <span class="totals-amount">{{ invoice.reminder_fee | as_currency }}</span>
       </div>
       {% endif %}
-      <div class="divider"></div>
-      <div class="totals-line total-due">
+      <div class="total-due">
         <span class="totals-label">{{ l.total_due }}</span>
-        <span class="totals-value">{{ invoice.total | as_currency }}</span>
+        <span class="totals-amount">{{ invoice.total | as_currency }}</span>
       </div>
-    </div>
-  </div>
-
-  <div class="payment">
-    <span class="field-label">{{ l.payment }}</span>
-    <div class="payment-value">
-      {% if user.bank_account %}<div>IBAN: {{ user.bank_account.IBAN }}{% if user.bank_account.BIC %}&emsp;BIC: {{ user.bank_account.BIC }}{% endif %}</div>{% endif %}
     </div>
   </div>
 
   <div class="closing">
-    <p>{% if is_reminder %}{{ l.reminder_closing }}{% elif notes %}<span style="white-space:pre-line">{{ notes }}</span>{% else %}{{ l.closing }}{% endif %}</p>
+    <p>{% if is_reminder %}{{ l.reminder_closing }}{% else %}{{ l.closing }}{% endif %}</p>
     <div class="sig-line"></div>
     {{ user.name }}
   </div>
